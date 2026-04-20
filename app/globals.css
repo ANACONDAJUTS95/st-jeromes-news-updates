@@ -1,26 +1,86 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  /* Colors - MASTER.md (Bold Minimalism) */
+  --color-primary: #18181b;
+  --color-primary-foreground: #fafafa;
+  --color-secondary: #3f3f46;
+  --color-cta: #ec4899;
+  --color-background: #fafafa;
+  --color-text: #09090b;
+  --color-outline: #e2e8f0;
+  
+  /* Scholarly Archive Accents (for Heritage feel) */
+  --color-heritage-brown: #592100;
+  --color-gold: #fde68a;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  /* Typography */
+  --font-serif: "Newsreader", serif;
+  --font-sans: "Inter", "Roboto", sans-serif;
+
+  /* Elevation */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
+
+  /* Animation */
+  --animate-reveal: reveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-fade-in-up: fade-in-up 0.6s ease-out forwards;
+
+  @keyframes reveal {
+    from { clip-path: inset(0 100% 0 0); }
+    to { clip-path: inset(0 0 0 0); }
+  }
+
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+  body {
+    @apply bg-background text-text font-sans antialiased selection:bg-cta/20;
+    scroll-behavior: smooth;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif tracking-tight text-primary;
+  }
+}
+
+@layer utilities {
+  .text-display-lg {
+    @apply font-serif text-[clamp(3rem,10vw,12rem)] font-black leading-[0.9] tracking-[-0.05em];
+  }
+  
+  .text-display-md {
+    @apply font-serif text-[clamp(2.5rem,8vw,6rem)] font-bold leading-[1.1] tracking-[-0.03em];
+  }
+
+  .text-headline-lg {
+    @apply font-serif text-3xl md:text-5xl leading-[1.2];
+  }
+
+  .text-label-md {
+    @apply font-sans text-xs font-bold uppercase tracking-[0.2em];
+  }
+
+  .btn-primary {
+    @apply bg-cta text-white px-8 py-4 rounded-lg font-bold transition-all duration-300 hover:opacity-90 hover:-translate-y-1 hover:shadow-lg cursor-pointer;
+  }
+
+  .btn-secondary {
+    @apply bg-transparent text-primary border-2 border-primary px-8 py-4 rounded-lg font-bold transition-all duration-300 hover:bg-primary hover:text-white cursor-pointer;
+  }
+
+  .card-editorial {
+    @apply bg-white p-6 rounded-xl shadow-md transition-all duration-300 hover:shadow-xl hover:-translate-y-2 cursor-pointer border border-outline/50;
+  }
+
+  .reveal-on-scroll {
+    opacity: 0;
+    @apply animate-fade-in-up;
+  }
 }
