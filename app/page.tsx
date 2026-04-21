@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import Masthead from "@/components/Masthead";
 import Footer from "@/components/Footer";
 
@@ -7,109 +8,122 @@ export default function Home() {
     <div className="min-h-screen flex flex-col bg-background selection:bg-cta selection:text-white">
       <Masthead />
 
-      <main className="flex-1 pt-40 md:pt-64">
-        {/* Hero Section - Exaggerated Minimalism */}
-        <section className="px-6 md:px-12 mb-32 md:mb-64">
-          <div className="max-w-[1800px] mx-auto">
-            <div className="overflow-hidden mb-8">
-              <h1 className="text-display-lg animate-reveal">
-                THE<br />ARCHIVE<span className="text-cta">.</span>
-              </h1>
+      <main className="flex-1 pt-24 md:pt-32 pb-32">
+        <div className="container-tight">
+          {/* Hero / Featured Split */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 mb-24 items-start">
+            <div className="lg:col-span-8">
+              <Link href="/news/a-billion-byte-gift" className="group cursor-pointer">
+                <div className="relative aspect-video bg-surface-muted/50 rounded-sm overflow-hidden mb-8">
+                  <Image 
+                    src="/next.svg" 
+                    alt="Featured Story" 
+                    fill 
+                    className="object-contain p-20 opacity-10 group-hover:scale-105 transition-transform duration-1000" 
+                  />
+                </div>
+                <div className="space-y-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.3em] text-secondary">Featured dispatch</p>
+                  <h3 className="text-4xl md:text-6xl font-serif font-bold leading-tight group-hover:text-secondary transition-colors">
+                    A Billion-Byte Gift for the Future of Memory
+                  </h3>
+                  <p className="text-body-editorial line-clamp-3">
+                    The St. Jerome endowment has received its largest single donation to date, aimed specifically at the Alexandria Protocol. This initiative represents more than just storage; it is a commitment to the preservation of our collective academic soul.
+                  </p>
+                </div>
+              </Link>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-end animate-fade-in-up [animation-delay:400ms]">
-              <div className="lg:col-span-5">
-                <p className="text-xl md:text-2xl font-sans text-secondary leading-relaxed">
-                  Preserving the storied layouts of academia through a modern, 
-                  high-contrast lens. Heritage meets the speed of light.
-                </p>
-              </div>
-              <div className="lg:col-span-7 flex justify-end">
-                <button className="btn-primary flex items-center gap-4 group">
-                  Explore Collection
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 group-hover:translate-x-2 transition-transform">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
 
-        {/* Featured Story - Asymmetric Grid */}
-        <section className="px-6 md:px-12 mb-32 md:mb-64">
-          <div className="max-w-[1800px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-24 items-center">
-            <div className="lg:col-span-7 relative aspect-[16/10] group overflow-hidden rounded-2xl shadow-xl">
-              <Image
-                src="/globe.svg"
-                alt="Featured Story"
-                fill
-                className="object-contain p-24 opacity-10 group-hover:scale-105 transition-transform duration-1000"
-              />
-              <div className="absolute inset-0 bg-primary/5 group-hover:bg-transparent transition-colors duration-500" />
-              <div className="absolute top-12 left-12">
-                <span className="bg-cta text-white text-label-md px-4 py-2 rounded-full">Lead Editorial</span>
-              </div>
-            </div>
-            
-            <div className="lg:col-span-5 space-y-8 animate-fade-in-up">
-              <h2 className="text-display-md">
-                Digital Archaeology in the 21st Century
-              </h2>
-              <p className="text-lg text-secondary leading-relaxed font-sans">
-                How St. Jerome is pioneering new methods of digital curation to protect our collective scholarly memory against the threat of bit-rot and obsolescence.
-              </p>
-              <Link href="/news" className="inline-block text-primary font-bold border-b-2 border-cta pb-1 hover:text-cta transition-colors cursor-pointer">
-                Read the full briefing
+            <div className="lg:col-span-4 space-y-12">
+              <h3 className="text-label-caps border-b border-primary/5 pb-4 mb-8">Staff Picks</h3>
+              {[
+                { title: "Scriptorium Chronicles", author: "Dr. Alistair Thorne", date: "Oct 19" },
+                { title: "The Future of Memory", author: "Elena Vance", date: "Oct 15" },
+                { title: "Digital Archaeology in the 21st Century", author: "Julian Graves", date: "Oct 12" }
+              ].map((pick, i) => (
+                <div key={i} className="group cursor-pointer">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-5 h-5 rounded-full bg-surface-container" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider">{pick.author}</span>
+                  </div>
+                  <h4 className="text-lg font-serif font-bold group-hover:text-secondary transition-colors leading-snug">
+                    {pick.title}
+                  </h4>
+                  <p className="text-[10px] text-on-surface-muted mt-1 uppercase font-bold tracking-tighter">{pick.date} • 5 min read</p>
+                </div>
+              ))}
+              <Link href="/news" className="inline-block text-[10px] font-black uppercase tracking-widest text-secondary hover:text-primary transition-colors mt-4">
+                Full Collection →
               </Link>
             </div>
           </div>
-        </section>
 
-        {/* Dynamic Grid Section */}
-        <section className="bg-primary text-white py-32 md:py-64 px-6 md:px-12">
-          <div className="max-w-[1800px] mx-auto">
-            <div className="flex flex-col md:flex-row justify-between items-end mb-24 gap-8">
-              <h3 className="text-display-md text-white">Latest Dispatches<span className="text-cta">.</span></h3>
-              <p className="text-label-md text-cta mb-4">View All Stories</p>
+          <div className="no-line-divider mb-24 opacity-50" />
+
+          {/* Main Feed */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
+            <div className="lg:col-span-8">
+              <h3 className="text-label-caps mb-12">Latest Stories</h3>
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <Link href="/news/a-billion-byte-gift" key={i} className="article-card block">
+                    <div className="flex-1 space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-5 h-5 rounded-full bg-surface-container" />
+                        <span className="text-[10px] font-bold text-secondary uppercase tracking-wider">Research • Dispatch 0{i}</span>
+                      </div>
+                      <h4 className="text-2xl font-serif font-bold hover:text-secondary transition-colors leading-tight">
+                        Uncovering the Lost Sermons of St. Jerome&apos;s First Dean
+                      </h4>
+                      <p className="text-on-surface-muted text-sm line-clamp-2 leading-relaxed">
+                        New restorative techniques have allowed scholars to access previously unreadable wax cylinders containing over 40 hours of lost audio from the founding era.
+                      </p>
+                    </div>
+                    <div className="hidden md:block w-40 h-28 bg-surface-muted/30 relative overflow-hidden flex-shrink-0 rounded-sm">
+                       <Image src="/window.svg" alt="Article Thumbnail" fill className="object-contain p-8 opacity-10" />
+                    </div>
+                  </Link>
+                ))}
+              </div>
             </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
-              {[
-                { title: "The Alexandria Protocol", cat: "Research", icon: "/file.svg" },
-                { title: "Scriptorium Chronicles", cat: "History", icon: "/window.svg" },
-                { title: "The Future of Memory", cat: "Philosophy", icon: "/next.svg" }
-              ].map((item, i) => (
-                <div key={i} className="group p-10 border border-white/10 rounded-2xl hover:bg-white/5 transition-colors cursor-pointer">
-                  <div className="w-12 h-12 mb-8 relative opacity-50 group-hover:opacity-100 transition-opacity">
-                    <Image src={item.icon} alt={item.title} fill className="object-contain" />
-                  </div>
-                  <p className="text-label-md text-cta mb-4">{item.cat}</p>
-                  <h4 className="text-3xl font-serif mb-6 group-hover:text-cta transition-colors">{item.title}</h4>
-                  <p className="text-white/60 mb-8 line-clamp-2">Exploring the intersections of historical preservation and modern technology.</p>
-                  <div className="h-[1px] w-full bg-white/10 group-hover:bg-cta transition-colors" />
+
+            {/* Sidebar / Topics */}
+            <div className="lg:col-span-4 space-y-12 sticky top-32 h-fit">
+              <div className="p-8 bg-surface-muted/50 rounded-sm shadow-academic border border-primary/5">
+                <h4 className="text-xs font-black uppercase tracking-widest mb-6">Discover More</h4>
+                <div className="flex flex-wrap gap-2">
+                  {["Technology", "Self", "Preservation", "Archive", "History", "Campus", "Society"].map(topic => (
+                    <button key={topic} className="px-4 py-2 bg-surface border border-primary/5 text-[10px] font-bold uppercase tracking-tighter rounded-full hover:border-secondary transition-colors cursor-pointer">
+                      {topic}
+                    </button>
+                  ))}
                 </div>
-              ))}
+                <Link href="/news" className="inline-block text-[10px] font-black uppercase tracking-widest text-secondary mt-8 hover:text-primary">
+                  All Topics →
+                </Link>
+              </div>
+              
+              <div className="space-y-6">
+                <h4 className="text-label-caps">Scholars to follow</h4>
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-surface-container" />
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-tight">Researcher {i}</p>
+                        <p className="text-[10px] text-on-surface-muted line-clamp-1 italic">Expert in Digital Archaeology</p>
+                      </div>
+                    </div>
+                    <button className="btn-outline text-[9px] font-black px-3 py-1 uppercase tracking-tighter">Follow</button>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-        </section>
-
-        {/* Interactive Statement */}
-        <section className="py-32 md:py-64 px-6 md:px-12 text-center overflow-hidden">
-          <div className="max-w-4xl mx-auto">
-            <p className="text-label-md text-cta mb-8">Our Mission</p>
-            <h3 className="text-display-md leading-tight italic">
-              &quot;We do not store data; we curate the human textures that once was noise.&quot;
-            </h3>
-            <div className="mt-16 flex justify-center gap-8">
-              <Link href="/archives" className="btn-secondary">Explore Catalog</Link>
-            </div>
-          </div>
-        </section>
+        </div>
       </main>
 
       <Footer />
     </div>
   );
 }
-
-import Link from "next/link";

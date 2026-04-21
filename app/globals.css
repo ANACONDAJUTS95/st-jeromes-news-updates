@@ -1,86 +1,84 @@
 @import "tailwindcss";
 
 @theme inline {
-  /* Colors - MASTER.md (Bold Minimalism) */
-  --color-primary: #18181b;
-  --color-primary-foreground: #fafafa;
-  --color-secondary: #3f3f46;
-  --color-cta: #ec4899;
-  --color-background: #fafafa;
-  --color-text: #09090b;
-  --color-outline: #e2e8f0;
-  
-  /* Scholarly Archive Accents (for Heritage feel) */
-  --color-heritage-brown: #592100;
+  /* Colors - The Scholarly Archive (Minimalist Hybrid) */
+  --color-primary: #592100;
+  --color-secondary: #9b4500;
+  --color-surface: #fff9ec;
+  --color-surface-muted: #f5eedf;
+  --color-surface-container: #efe8d8;
+  --color-on-surface: #201c02;
+  --color-on-surface-muted: #87736a;
+  --color-outline: rgba(89, 33, 0, 0.1); /* Soft brown tint instead of grey */
   --color-gold: #fde68a;
 
   /* Typography */
   --font-serif: "Newsreader", serif;
-  --font-sans: "Inter", "Roboto", sans-serif;
+  --font-sans: "Inter", sans-serif;
 
-  /* Elevation */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
-  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
+  /* Elevation - Academic & Brown-tinted */
+  --shadow-academic: 0 4px 24px rgba(89, 33, 0, 0.06);
+  --shadow-academic-hover: 0 12px 32px rgba(89, 33, 0, 0.12);
 
   /* Animation */
-  --animate-reveal: reveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  --animate-fade-in-up: fade-in-up 0.6s ease-out forwards;
-
-  @keyframes reveal {
-    from { clip-path: inset(0 100% 0 0); }
-    to { clip-path: inset(0 0 0 0); }
-  }
-
-  @keyframes fade-in-up {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
+  --animate-fade-in: fade-in 0.4s ease-out forwards;
+  
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 }
 
 @layer base {
   body {
-    @apply bg-background text-text font-sans antialiased selection:bg-cta/20;
+    @apply bg-surface text-on-surface font-sans antialiased;
     scroll-behavior: smooth;
+    /* Subtle paper texture from DESIGN.md guidelines */
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3%3Ffilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    background-attachment: fixed;
+    background-size: 200px 200px;
+    opacity: 0.99;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    @apply font-serif tracking-tight text-primary;
+    @apply font-serif text-primary font-bold tracking-tight;
   }
 }
 
 @layer utilities {
   .text-display-lg {
-    @apply font-serif text-[clamp(3rem,10vw,12rem)] font-black leading-[0.9] tracking-[-0.05em];
+    @apply font-serif text-[clamp(2.5rem,8vw,5rem)] font-bold leading-[1.1] tracking-[-0.03em];
   }
   
   .text-display-md {
-    @apply font-serif text-[clamp(2.5rem,8vw,6rem)] font-bold leading-[1.1] tracking-[-0.03em];
+    @apply font-serif text-[clamp(2rem,6vw,3.5rem)] font-bold leading-[1.1] tracking-[-0.02em];
   }
 
-  .text-headline-lg {
-    @apply font-serif text-3xl md:text-5xl leading-[1.2];
+  .text-body-editorial {
+    @apply font-serif text-xl leading-relaxed text-secondary/80;
   }
 
-  .text-label-md {
-    @apply font-sans text-xs font-bold uppercase tracking-[0.2em];
+  .text-label-caps {
+    @apply font-sans text-xs font-bold uppercase tracking-[0.12em] text-on-surface-muted;
   }
 
-  .btn-primary {
-    @apply bg-cta text-white px-8 py-4 rounded-lg font-bold transition-all duration-300 hover:opacity-90 hover:-translate-y-1 hover:shadow-lg cursor-pointer;
+  .btn-minimal {
+    @apply bg-secondary text-white px-6 py-2 rounded-full font-medium transition-all duration-300 hover:bg-primary cursor-pointer shadow-academic;
   }
 
-  .btn-secondary {
-    @apply bg-transparent text-primary border-2 border-primary px-8 py-4 rounded-lg font-bold transition-all duration-300 hover:bg-primary hover:text-white cursor-pointer;
+  .btn-outline {
+    @apply bg-transparent text-primary border border-primary/20 px-6 py-2 rounded-full font-medium transition-all duration-300 hover:border-primary cursor-pointer;
   }
 
-  .card-editorial {
-    @apply bg-white p-6 rounded-xl shadow-md transition-all duration-300 hover:shadow-xl hover:-translate-y-2 cursor-pointer border border-outline/50;
+  .container-tight {
+    @apply max-w-[1200px] mx-auto px-6;
   }
 
-  .reveal-on-scroll {
-    opacity: 0;
-    @apply animate-fade-in-up;
+  .article-card {
+    @apply py-8 flex flex-col md:flex-row gap-8 transition-all duration-500 hover:bg-surface-muted/50 px-4 -mx-4 cursor-pointer rounded-sm;
+  }
+
+  .no-line-divider {
+    @apply h-px w-full bg-gradient-to-r from-transparent via-primary/10 to-transparent;
   }
 }
