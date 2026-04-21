@@ -1,6 +1,7 @@
 import Masthead from "@/components/Masthead";
 import Footer from "@/components/Footer";
 import Image from "next/image";
+import Link from "next/link";
 
 export default function SpotlightPage() {
   return (
@@ -67,7 +68,7 @@ export default function SpotlightPage() {
 
                   <div className="pt-12 border-t border-primary/5">
                     <div className="flex flex-wrap gap-6">
-                      <button className="btn-minimal">Full Interview Transcript</button>
+                      <Link href="/news/a-billion-byte-gift" className="btn-minimal">Full Interview Transcript</Link>
                       <button className="btn-outline">View Portfolio</button>
                     </div>
                   </div>
@@ -89,7 +90,7 @@ export default function SpotlightPage() {
                 { name: "Marcus Chen", year: "28", topic: "Visual Ephemera", icon: "/window.svg" },
                 { name: "Sarah Jenkins", year: "25", topic: "Paper Restoration", icon: "/next.svg" }
               ].map((scholar, i) => (
-                <div key={i} className="group cursor-pointer space-y-6">
+                <Link href="/news/a-billion-byte-gift" key={i} className="group cursor-pointer space-y-6 block">
                   <div className="aspect-[4/5] relative bg-surface-container rounded-sm overflow-hidden shadow-academic group-hover:shadow-academic-hover transition-all duration-500">
                     <Image src={scholar.icon} alt={scholar.name} fill className="object-contain p-12 opacity-5" />
                   </div>
@@ -98,7 +99,7 @@ export default function SpotlightPage() {
                     <h4 className="text-xl font-serif font-bold group-hover:text-primary transition-colors">{scholar.name}</h4>
                     <p className="text-[10px] text-on-surface-muted uppercase font-bold tracking-tighter italic">{scholar.topic}</p>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           </section>
