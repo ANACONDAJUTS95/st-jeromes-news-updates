@@ -107,18 +107,42 @@ async function scrapeFacebook(url) {
     console.log(`📸 Debug screenshot saved to data/debug.png`);
 
     // Extract posts
-    const posts = await page.evaluate(() => {
-      // Look for the main article containers
+    const posts = await page.evaluate(async () => {
+      // 1. Find and click all "Tumingin pa" or "See more" buttons
+      const seeMoreButtons = Array.from(document.querySelectorAll('div[role="button"], span, a'))
+        .filter(el => {
+          const text = el.innerText.toLowerCase();
+          return text.includes('tumingin pa') || text.includes('see more');
+        });
+
+      for (const btn of seeMoreButtons) {
+        try {
+          btn.click();
+          // Small wait for expansion
+          await new Promise(r => setTimeout(r, 500));
+        } catch (e) {}
+      }
+
+      // 2. Now extract the full content
       const articles = Array.from(document.querySelectorAll('div[role="article"]'));
       
       return articles.slice(0, 5).map(el => {
         // Find the message text (Facebook uses specific data attributes for this)
         const messageEl = el.querySelector('div[data-ad-preview="message"]');
-        const text = messageEl ? messageEl.innerText : el.innerText.slice(0, 500);
+        const text = messageEl ? messageEl.innerText : el.innerText;
         
-        // Find the image
-        const img = el.querySelector('img[alt="May be an image of"], img[src*="fbcdn"]');
-        const imgSrc = img ? img.src : '';
+        // Find the main image
+        const imgs = Array.from(el.querySelectorAll('img')).filter(i => i.src && i.src.includes('fbcdn'));
+        let imgSrc = '';
+        if (imgs.length > 0) {
+          // Sort by size (width * height) and pick the largest
+          const largestImg = imgs.sort((a, b) => {
+            const areaA = (a.naturalWidth || a.width) * (a.naturalHeight || a.height);
+            const areaB = (b.naturalWidth || b.width) * (b.naturalHeight || b.height);
+            return areaB - areaA;
+          })[0];
+          imgSrc = largestImg.src;
+        }
 
         // Find the timestamp/link
         const timeLink = el.querySelector('a[role="link"]');
@@ -144,36 +168,74 @@ async function scrapeFacebook(url) {
   }
 }
 
+// Comprehensive helper to convert fancy unicode styles to plain text
+function cleanUnicode(text) {
+  if (!text) return "";
+  // Map various mathematical bold/italic/sans ranges to standard A-Z/a-z
+  return text.replace(/[\u{1D400}-\u{1D7FF}]/gu, (char) => {
+    const code = char.codePointAt(0);
+    
+    // Bold Serif
+    if (code >= 0x1d400 && code <= 0x1d419) return String.fromCharCode(code - 0x1d400 + 65);
+    if (code >= 0x1d41a && code <= 0x1d433) return String.fromCharCode(code - 0x1d41a + 97);
+    
+    // Bold Sans-Serif (Common on FB)
+    if (code >= 0x1d5d4 && code <= 0x1d5ed) return String.fromCharCode(code - 0x1d5d4 + 65);
+    if (code >= 0x1d5ee && code <= 0x1d607) return String.fromCharCode(code - 0x1d5ee + 97);
+    
+    // Italic Sans-Serif
+    if (code >= 0x1d608 && code <= 0x1d621) return String.fromCharCode(code - 0x1d608 + 65);
+    if (code >= 0x1d622 && code <= 0x1d63b) return String.fromCharCode(code - 0x1d622 + 97);
+
+    return char;
+  });
+}
+
+function stripNewsPrefix(title) {
+  if (!title) return "";
+  // Aggressively remove "News |", "Update |", etc. from the start
+  return title.replace(/^(News|Update|Facebook|Jeromian|Post|Article)\s*[|:–—\-]\s*/i, "").trim();
+}
+
 async function transformWithAI(item) {
+  const cleanContent = cleanUnicode(item.content);
+  
   if (!GEMINI_API_KEY) {
-    return basicTransform(item);
+    return basicTransform({ ...item, content: cleanContent });
   }
 
   const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-  const prompt = `Transform this Facebook post into a structured school news article.
+  const prompt = `You are an expert editorial assistant for "Jeromian Voice", a school news publication.
+Transform this Facebook post into a structured news article.
 
-Raw text:
+POST CONTENT:
 """
-Content: ${item.content}
-Date: ${item.timestamp}
+${cleanContent}
 """
 
-Output ONLY valid JSON with these fields:
-- title: A compelling, professional news headline (max 80 chars)
-- slug: URL-friendly version of title (lowercase, hyphenated, no special chars)
-- excerpt: A 1-2 sentence summary (max 160 chars)
-- content: The full article body, rewritten in professional news style with 3-5 paragraphs. Use HTML tags (<p>, <strong>, etc.) if needed.
-- category: One of [Academics, Campus Life, Events, Research, General]
-- timestamp: ISO 8601 date string
+EDITORIAL RULES:
+1. TITLE: The very first line of the post is the headline. Clean it of any "News |" prefixes and fancy fonts.
+2. BODY: Everything after the first line is the article content. 
+   - DO NOT include the Title/Headline in this field.
+   - Preserve professional tone and use <p> tags for paragraphs. 
+3. CREDITS: Look for these emojis at the end:
+   - 📸: Photo Credits
+   - 🎨: Layout/Graphics Credits
+   - ✍🏻: Author/Writer Credits
+   If found, format them into a JSON object.
 
-Rules:
-- Remove any casual Facebook language ("Hey guys", "Check this out", etc.)
-- Write in third-person, journalistic tone
-- Preserve all factual information, dates, names, and locations
-- If the post is just an image with minimal text, create a brief caption-style article
-- Do NOT include markdown code fences in the output, just raw JSON
+Output ONLY valid JSON:
+{
+  "title": "...",
+  "slug": "...",
+  "excerpt": "...",
+  "content": "...",
+  "category": "...",
+  "timestamp": "ISO-8601",
+  "credits": { "photo": "...", "layout": "...", "writer": "..." }
+}
 `;
 
   const result = await model.generateContent(prompt);
@@ -185,17 +247,31 @@ Rules:
   try {
     parsed = JSON.parse(jsonText);
   } catch (err) {
-    return basicTransform(item);
+    return basicTransform({ ...item, content: cleanContent });
   }
 
+  // Final cleanup and formatting
+  let finalTitle = stripNewsPrefix(parsed.title || cleanContent.split('\n')[0]);
   const id = hashId(item.id || item.content);
+  const slug = slugify(finalTitle) || `article-${id}`;
+
+  // Construct content with credits if available
+  let finalContent = parsed.content;
+  if (parsed.credits) {
+    let creditHtml = '<div class="mt-8 pt-6 border-t border-outline/30 text-sm text-on-surface-muted space-y-1">';
+    if (parsed.credits.writer) creditHtml += `<p><i>Story Written By: ${parsed.credits.writer}</i></p>`;
+    if (parsed.credits.photo) creditHtml += `<p><i>Photo Captured By: ${parsed.credits.photo}</i></p>`;
+    if (parsed.credits.layout) creditHtml += `<p><i>Photo Layout Done By: ${parsed.credits.layout}</i></p>`;
+    creditHtml += '</div>';
+    finalContent += creditHtml;
+  }
 
   return {
     id,
-    title: parsed.title || "News Update",
-    slug: parsed.slug || slugify(parsed.title || "news-update"),
-    content: parsed.content || item.content,
-    excerpt: parsed.excerpt || item.content.slice(0, 160),
+    title: finalTitle,
+    slug: slug,
+    content: finalContent,
+    excerpt: parsed.excerpt || cleanContent.split('\n').slice(1, 3).join(' ').slice(0, 160),
     originalUrl: item.link || "",
     timestamp: parsed.timestamp || new Date().toISOString(),
     category: parsed.category || "General",
@@ -205,7 +281,7 @@ Rules:
 
 function basicTransform(item) {
   const id = hashId(item.id || item.content);
-  const title = item.content.split('\n')[0].slice(0, 50) || "News Update";
+  let title = stripNewsPrefix(item.content.split('\n')[0]).slice(0, 50) || "News Update";
 
   return {
     id,

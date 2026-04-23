@@ -11,8 +11,9 @@ export function generateStaticParams() {
   }));
 }
 
-export function generateMetadata({ params }: { params: { id: string } }) {
-  const article = getArticleBySlug(params.id);
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const article = getArticleBySlug(id);
   if (!article) return { title: "Article Not Found" };
 
   return {
@@ -21,8 +22,9 @@ export function generateMetadata({ params }: { params: { id: string } }) {
   };
 }
 
-export default function ArticlePage({ params }: { params: { id: string } }) {
-  const article = getArticleBySlug(params.id);
+export default async function ArticlePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const article = getArticleBySlug(id);
 
   if (!article) {
     notFound();

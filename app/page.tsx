@@ -76,23 +76,35 @@ export default function Home() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16">
             <div className="lg:col-span-8">
               <h3 className="text-label-caps mb-8 md:mb-12">Latest Stories</h3>
-              <div className="space-y-2">
+              <div className="space-y-6 md:space-y-10">
                 {latest.length > 0 ? latest.map((article, i) => (
-                  <Link href={`/news/${article.slug}`} key={article.id} className="article-card block">
-                    <div className="flex-1 space-y-3">
+                  <Link href={`/news/${article.slug}`} key={article.id} className="group flex flex-col md:flex-row gap-6 md:gap-10 pb-10 border-b border-outline/30 last:border-0">
+                    <div className="flex-1 space-y-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-5 h-5 rounded-full bg-surface-container flex-shrink-0" />
-                        <span className="text-label-sm text-secondary">{article.category || "General"} &bull; Dispatch {String(i + 1).padStart(2, "0")}</span>
+                        <span className="px-2 py-0.5 bg-surface-container text-[10px] font-bold uppercase tracking-wider rounded-sm text-secondary">
+                          {article.category || "General"}
+                        </span>
+                        <span className="text-label-sm text-secondary/60">Dispatch {String(i + 1).padStart(2, "0")}</span>
                       </div>
-                      <h4 className="text-lg md:text-2xl font-serif font-bold hover:text-gold transition-colors leading-tight">
+                      <h4 className="text-xl md:text-3xl font-serif font-bold group-hover:text-gold transition-colors leading-[1.1] line-clamp-2">
                         {article.title}
                       </h4>
-                      <p className="text-on-surface-muted text-sm line-clamp-2 leading-relaxed">
+                      <p className="text-on-surface-muted text-base line-clamp-2 leading-relaxed max-w-2xl">
                         {article.excerpt}
                       </p>
+                      <div className="pt-2">
+                        <span className="text-label-sm text-secondary uppercase tracking-widest">
+                          {new Date(article.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </span>
+                      </div>
                     </div>
-                    <div className="hidden md:block w-40 h-28 bg-surface rounded-sm relative overflow-hidden flex-shrink-0 shadow-academic">
-                      <Image src={article.image || "/window.svg"} alt={article.title} fill className="object-contain p-8 opacity-20" />
+                    <div className="w-full md:w-52 h-40 md:h-36 bg-surface rounded-sm relative overflow-hidden flex-shrink-0 shadow-academic">
+                      <Image 
+                        src={article.image || "/window.svg"} 
+                        alt={article.title} 
+                        fill 
+                        className={`object-cover transition-transform duration-700 group-hover:scale-105 ${!article.image ? 'p-8 opacity-20' : 'opacity-90'}`} 
+                      />
                     </div>
                   </Link>
                 )) : (

@@ -84,17 +84,26 @@ export default function ArticleClient({ article }: Props) {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16">
               <div className="lg:col-span-8 space-y-10 md:space-y-12">
                 <div className="relative aspect-video bg-surface rounded-sm overflow-hidden shadow-academic">
-                  <Image src={article.image || "/next.svg"} alt={article.title} fill className="object-contain p-12 md:p-20 opacity-20" />
+                  <Image 
+                    src={article.image || "/next.svg"} 
+                    alt={article.title} 
+                    fill 
+                    className={`object-cover transition-transform duration-1000 ${!article.image ? 'p-12 md:p-20 opacity-20' : 'opacity-90'}`} 
+                  />
                 </div>
 
-                <div className="flex items-center justify-between py-4 md:py-6">
+                <div className="flex items-center justify-between py-4 md:py-6 border-b border-outline/30">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-full bg-secondary/15 flex items-center justify-center text-primary flex-shrink-0 font-bold">
                       {article.title[0]}
                     </div>
                     <div>
-                      <p className="text-label-sm">{article.category || "News"}</p>
-                      <p className="text-label-sm text-on-surface-muted">{displayDate}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 bg-surface-container text-[10px] font-bold uppercase tracking-wider rounded-sm text-secondary">
+                          {article.category || "General"}
+                        </span>
+                      </div>
+                      <p className="text-label-sm text-on-surface-muted mt-1">{displayDate}</p>
                     </div>
                   </div>
                 </div>
