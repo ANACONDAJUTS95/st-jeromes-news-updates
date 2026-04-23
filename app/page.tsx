@@ -2,8 +2,13 @@ import Image from "next/image";
 import Link from "next/link";
 import Masthead from "@/components/Masthead";
 import Footer from "@/components/Footer";
+import { getAllArticles } from "@/lib/articles";
 
 export default function Home() {
+  const articles = getAllArticles();
+  const featured = articles[0];
+  const latest = articles.slice(1, 4);
+
   return (
     <div className="min-h-screen flex flex-col bg-background selection:bg-secondary/20 selection:text-primary">
       <Masthead />
@@ -13,25 +18,32 @@ export default function Home() {
           {/* Hero / Featured Split */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 mb-16 md:mb-24 items-start">
             <div className="lg:col-span-8">
-              <Link href="/news/a-billion-byte-gift" className="group cursor-pointer block">
-                <div className="relative aspect-video bg-surface rounded-sm overflow-hidden mb-6 md:mb-8 shadow-academic">
-                  <Image
-                    src="/next.svg"
-                    alt="Featured Story"
-                    fill
-                    className="object-contain p-12 md:p-20 opacity-20 group-hover:scale-105 transition-transform duration-1000"
-                  />
+              {featured ? (
+                <Link href={`/news/${featured.slug}`} className="group cursor-pointer block">
+                  <div className="relative aspect-video bg-surface rounded-sm overflow-hidden mb-6 md:mb-8 shadow-academic">
+                    <Image
+                      src={featured.image || "/next.svg"}
+                      alt={featured.title}
+                      fill
+                      className="object-contain p-12 md:p-20 opacity-20 group-hover:scale-105 transition-transform duration-1000"
+                    />
+                  </div>
+                  <div className="space-y-3 md:space-y-4">
+                    <p className="text-label-caps text-secondary">Featured dispatch</p>
+                    <h3 className="text-headline-lg group-hover:text-gold transition-colors">
+                      {featured.title}
+                    </h3>
+                    <p className="text-body-editorial line-clamp-3">
+                      {featured.excerpt}
+                    </p>
+                  </div>
+                </Link>
+              ) : (
+                <div className="bg-surface rounded-sm p-8 md:p-12 text-center">
+                  <p className="text-label-caps text-secondary mb-4">Welcome to Jeromian</p>
+                  <p className="text-body-editorial">The latest news from St. Jerome's Academy will appear here once the sync pipeline is activated. See SETUP.md for instructions.</p>
                 </div>
-                <div className="space-y-3 md:space-y-4">
-                  <p className="text-label-caps text-secondary">Featured dispatch</p>
-                  <h3 className="text-headline-lg group-hover:text-gold transition-colors">
-                    A Billion-Byte Gift for the Future of Memory
-                  </h3>
-                  <p className="text-body-editorial line-clamp-3">
-                    The St. Jerome endowment has received its largest single donation to date, aimed specifically at the Alexandria Protocol. This initiative represents more than just storage; it is a commitment to the preservation of our collective academic soul.
-                  </p>
-                </div>
-              </Link>
+              )}
             </div>
 
             <div className="lg:col-span-4 space-y-8 md:space-y-10">
@@ -65,25 +77,27 @@ export default function Home() {
             <div className="lg:col-span-8">
               <h3 className="text-label-caps mb-8 md:mb-12">Latest Stories</h3>
               <div className="space-y-2">
-                {[1, 2, 3].map((i) => (
-                  <Link href="/news/a-billion-byte-gift" key={i} className="article-card block">
+                {latest.length > 0 ? latest.map((article, i) => (
+                  <Link href={`/news/${article.slug}`} key={article.id} className="article-card block">
                     <div className="flex-1 space-y-3">
                       <div className="flex items-center gap-3">
                         <div className="w-5 h-5 rounded-full bg-surface-container flex-shrink-0" />
-                        <span className="text-label-sm text-secondary">Research &bull; Dispatch 0{i}</span>
+                        <span className="text-label-sm text-secondary">{article.category || "General"} &bull; Dispatch {String(i + 1).padStart(2, "0")}</span>
                       </div>
                       <h4 className="text-lg md:text-2xl font-serif font-bold hover:text-gold transition-colors leading-tight">
-                        Uncovering the Lost Sermons of St. Jerome's First Dean
+                        {article.title}
                       </h4>
                       <p className="text-on-surface-muted text-sm line-clamp-2 leading-relaxed">
-                        New restorative techniques have allowed scholars to access previously unreadable wax cylinders containing over 40 hours of lost audio from the founding era.
+                        {article.excerpt}
                       </p>
                     </div>
                     <div className="hidden md:block w-40 h-28 bg-surface rounded-sm relative overflow-hidden flex-shrink-0 shadow-academic">
-                      <Image src="/window.svg" alt="Article Thumbnail" fill className="object-contain p-8 opacity-20" />
+                      <Image src={article.image || "/window.svg"} alt={article.title} fill className="object-contain p-8 opacity-20" />
                     </div>
                   </Link>
-                ))}
+                )) : (
+                  <p className="text-label-sm text-center py-8">More articles will appear here after syncing.</p>
+                )}
               </div>
             </div>
 
