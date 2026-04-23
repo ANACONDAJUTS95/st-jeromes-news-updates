@@ -1,43 +1,74 @@
 @import "tailwindcss";
 
 @theme inline {
-  /* Colors - The Scholarly Archive (Minimalist Hybrid) */
-  --color-primary: #592100;
-  --color-secondary: #9b4500;
-  --color-surface: #fff9ec;
-  --color-surface-muted: #f5eedf;
-  --color-surface-container: #efe8d8;
-  --color-on-surface: #201c02;
-  --color-on-surface-muted: #87736a;
-  --color-outline: rgba(89, 33, 0, 0.1); /* Soft brown tint instead of grey */
-  --color-gold: #fde68a;
+  /* ============================================================
+     St. Jerome's Brown — Aged Parchment Palette
+     Warm yellowish-white paper background with rich brown as the
+     dominant visual identity. Inspired by old newspapers, leather-
+     bound journals, and manila envelopes.
+     ============================================================ */
+
+  /* Paper & Parchment */
+  --color-background: #f5f0e3;        /* Aged parchment — page bg */
+  --color-surface: #faf6ed;           /* Lighter cream — cards */
+  --color-surface-muted: #ebe4d3;     /* Darker parchment — hover */
+  --color-surface-container: #e5dcc8; /* Warm taupe — elevated cards */
+  --color-surface-container-low: #f0e8d5;
+  --color-surface-container-lowest: #faf6ed;
+
+  /* Brown Ink — School Identity */
+  --color-primary: #3d2417;           /* Deep brown — headlines */
+  --color-on-surface: #2c1810;        /* Very dark brown — body text */
+  --color-on-surface-muted: #7a5c47;  /* Medium brown — captions */
+
+  /* Accents */
+  --color-secondary: #8b4513;         /* Saddle brown — CTAs */
+  --color-secondary-container: #a0522d;
+  --color-gold: #b8860b;              /* Dark goldenrod — highlights */
+  --color-cta: #8b4513;
+
+  /* Borders & Lines */
+  --color-outline: rgba(61, 36, 23, 0.08);
+  --color-outline-variant: rgba(61, 36, 23, 0.15);
 
   /* Typography */
   --font-serif: "Newsreader", serif;
   --font-sans: "Inter", sans-serif;
 
-  /* Elevation - Academic & Brown-tinted */
-  --shadow-academic: 0 4px 24px rgba(89, 33, 0, 0.06);
-  --shadow-academic-hover: 0 12px 32px rgba(89, 33, 0, 0.12);
+  /* Elevation — brown-tinted shadows for parchment */
+  --shadow-academic: 0 4px 24px rgba(61, 36, 23, 0.08);
+  --shadow-academic-hover: 0 12px 32px rgba(61, 36, 23, 0.14);
 
   /* Animation */
   --animate-fade-in: fade-in 0.4s ease-out forwards;
-  
+  --animate-slide-up: slide-up 0.3s ease-out forwards;
+
   @keyframes fade-in {
     from { opacity: 0; }
     to { opacity: 1; }
   }
+
+  @keyframes slide-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 }
 
 @layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
   body {
-    @apply bg-surface text-on-surface font-sans antialiased;
+    @apply text-on-surface font-sans antialiased;
     scroll-behavior: smooth;
-    /* Subtle paper texture from DESIGN.md guidelines */
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3%3Ffilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    /* Very subtle warm ambient glow on parchment */
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(184, 134, 11, 0.04) 0%, transparent 55%),
+      radial-gradient(ellipse 60% 40% at 50% 110%, rgba(139, 69, 19, 0.03) 0%, transparent 50%),
+      #f5f0e3;
     background-attachment: fixed;
-    background-size: 200px 200px;
-    opacity: 0.99;
+    overflow-x: hidden;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -47,38 +78,96 @@
 
 @layer utilities {
   .text-display-lg {
-    @apply font-serif text-[clamp(2.5rem,8vw,5rem)] font-bold leading-[1.1] tracking-[-0.03em];
+    @apply font-serif font-bold leading-[1.1] tracking-[-0.03em];
+    font-size: clamp(2rem, 7vw, 5rem);
   }
-  
+
   .text-display-md {
-    @apply font-serif text-[clamp(2rem,6vw,3.5rem)] font-bold leading-[1.1] tracking-[-0.02em];
+    @apply font-serif font-bold leading-[1.1] tracking-[-0.02em];
+    font-size: clamp(1.75rem, 5vw, 3.5rem);
+  }
+
+  .text-headline-lg {
+    @apply font-serif font-bold leading-[1.3];
+    font-size: clamp(1.5rem, 4vw, 2.5rem);
   }
 
   .text-body-editorial {
-    @apply font-serif text-xl leading-relaxed text-secondary/80;
+    @apply font-serif leading-relaxed;
+    color: rgba(44, 24, 16, 0.85);
+    font-size: clamp(1rem, 2.5vw, 1.25rem);
   }
 
   .text-label-caps {
-    @apply font-sans text-xs font-bold uppercase tracking-[0.12em] text-on-surface-muted;
+    @apply font-sans font-bold uppercase;
+    color: #7a5c47;
+    font-size: clamp(0.625rem, 1.5vw, 0.75rem);
+    letter-spacing: 0.12em;
   }
 
+  .text-label-sm {
+    @apply font-sans font-bold uppercase;
+    color: #7a5c47;
+    font-size: clamp(0.625rem, 1.5vw, 0.6875rem);
+    letter-spacing: 0.1em;
+  }
+
+  /* Touch-safe button styles */
   .btn-minimal {
-    @apply bg-secondary text-white px-6 py-2 rounded-full font-medium transition-all duration-300 hover:bg-primary cursor-pointer shadow-academic;
+    @apply text-white px-6 py-3 rounded-sm font-medium transition-all duration-300 cursor-pointer;
+    background: #8b4513;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 24px rgba(61, 36, 23, 0.12);
+  }
+
+  .btn-minimal:hover {
+    background: #6b3410;
+    box-shadow: 0 12px 32px rgba(61, 36, 23, 0.2);
   }
 
   .btn-outline {
-    @apply bg-transparent text-primary border border-primary/20 px-6 py-2 rounded-full font-medium transition-all duration-300 hover:border-primary cursor-pointer;
+    @apply bg-transparent font-medium transition-all duration-300 cursor-pointer;
+    color: #3d2417;
+    border: 1px solid rgba(61, 36, 23, 0.15);
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.125rem;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .btn-outline:hover {
+    border-color: rgba(61, 36, 23, 0.4);
   }
 
   .container-tight {
-    @apply max-w-[1200px] mx-auto px-6;
+    @apply max-w-[1200px] mx-auto;
+    padding-left: clamp(1rem, 4vw, 1.5rem);
+    padding-right: clamp(1rem, 4vw, 1.5rem);
   }
 
   .article-card {
-    @apply py-8 flex flex-col md:flex-row gap-8 transition-all duration-500 hover:bg-surface-muted/50 px-4 -mx-4 cursor-pointer rounded-sm;
+    @apply flex flex-col md:flex-row gap-6 transition-all duration-500 px-3 -mx-3 cursor-pointer rounded-sm;
+    padding-top: clamp(1.5rem, 4vw, 2rem);
+    padding-bottom: clamp(1.5rem, 4vw, 2rem);
   }
 
-  .no-line-divider {
-    @apply h-px w-full bg-gradient-to-r from-transparent via-primary/10 to-transparent;
+  .article-card:hover {
+    background: rgba(235, 228, 211, 0.7);
+  }
+
+  /* Whitespace-based divider instead of lines */
+  .section-spacer {
+    @apply py-12 md:py-16 lg:py-24;
+  }
+
+  /* Mobile-optimized spacing utilities */
+  .page-padding {
+    padding-top: clamp(5rem, 12vw, 8rem);
+    padding-bottom: clamp(4rem, 10vw, 8rem);
   }
 }
