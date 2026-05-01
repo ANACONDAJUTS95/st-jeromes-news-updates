@@ -4,8 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { getAllArticles } from "@/lib/articles";
 
-export default function NewsPage() {
-  const articles = getAllArticles();
+export default async function NewsPage() {
+  const articles = await getAllArticles();
   const featured = articles[0];
   const rest = articles.slice(1);
 

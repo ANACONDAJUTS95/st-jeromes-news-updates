@@ -4,8 +4,8 @@ import Masthead from "@/components/Masthead";
 import Footer from "@/components/Footer";
 import { getAllArticles } from "@/lib/articles";
 
-export default function Home() {
-  const articles = getAllArticles();
+export default async function Home() {
+  const articles = await getAllArticles();
   const featured = articles[0];
   const latest = articles.slice(1, 4);
 

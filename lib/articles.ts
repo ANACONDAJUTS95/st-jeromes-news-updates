@@ -1,5 +1,4 @@
-import fs from "fs";
-import path from "path";
+import { adminDb } from "./firebase-admin";
 
 export interface Article {
   id: string;
@@ -11,31 +10,82 @@ export interface Article {
   timestamp: string;
   category: string;
   image?: string;
+  syncedAt?: string;
+  credits?: {
+    photo?: string;
+    layout?: string;
+    writer?: string;
+  };
 }
 
-const NEWS_DIR = path.join(process.cwd(), "content", "news");
+// Helper to sanitize Firestore data (converts Timestamps to strings)
+function sanitizeData(data: any) {
+  if (!data) return data;
+  const sanitized = { ...data };
+  
+  if (sanitized.syncedAt) {
+    if (typeof sanitized.syncedAt.toDate === 'function') {
+      sanitized.syncedAt = sanitized.syncedAt.toDate().toISOString();
+    } else if (sanitized.syncedAt._seconds) {
+      sanitized.syncedAt = new Date(sanitized.syncedAt._seconds * 1000).toISOString();
+    } else if (typeof sanitized.syncedAt === 'string') {
+      // already a string, do nothing
+    }
+  }
 
-export function getAllArticles(): Article[] {
-  if (!fs.existsSync(NEWS_DIR)) return [];
-
-  const files = fs.readdirSync(NEWS_DIR).filter((f) => f.endsWith(".json"));
-
-  const articles = files
-    .map((file) => {
-      const raw = fs.readFileSync(path.join(NEWS_DIR, file), "utf-8");
-      return JSON.parse(raw) as Article;
-    })
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-  return articles;
+  // Ensure other potential non-serializable fields are clean
+  return sanitized;
 }
 
-export function getArticleBySlug(slug: string): Article | null {
-  const articles = getAllArticles();
-  return articles.find((a) => a.slug === slug) || null;
+export async function getAllArticles(): Promise<Article[]> {
+  try {
+    const snapshot = await adminDb
+      .collection("articles")
+      .orderBy("timestamp", "desc")
+      .get();
+
+    return snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...(sanitizeData(doc.data()) as Omit<Article, "id">),
+    }));
+  } catch (error) {
+    console.error("Error fetching articles:", error);
+    return [];
+  }
 }
 
-export function getArticleById(id: string): Article | null {
-  const articles = getAllArticles();
-  return articles.find((a) => a.id === id) || null;
+export async function getArticleBySlug(slug: string): Promise<Article | null> {
+  try {
+    const snapshot = await adminDb
+      .collection("articles")
+      .where("slug", "==", slug)
+      .limit(1)
+      .get();
+
+    if (snapshot.empty) return null;
+    
+    const doc = snapshot.docs[0];
+    return {
+      id: doc.id,
+      ...(sanitizeData(doc.data()) as Omit<Article, "id">),
+    };
+  } catch (error) {
+    console.error(`Error fetching article by slug ${slug}:`, error);
+    return null;
+  }
+}
+
+export async function getArticleById(id: string): Promise<Article | null> {
+  try {
+    const doc = await adminDb.collection("articles").doc(id).get();
+    if (!doc.exists) return null;
+
+    return {
+      id: doc.id,
+      ...(sanitizeData(doc.data()) as Omit<Article, "id">),
+    };
+  } catch (error) {
+    console.error(`Error fetching article by id ${id}:`, error);
+    return null;
+  }
 }

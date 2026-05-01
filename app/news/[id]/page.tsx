@@ -4,8 +4,8 @@ import ArticleClient from "./ArticleClient";
 import Masthead from "@/components/Masthead";
 import Footer from "@/components/Footer";
 
-export function generateStaticParams() {
-  const articles = getAllArticles();
+export async function generateStaticParams() {
+  const articles = await getAllArticles();
   return articles.map((article) => ({
     id: article.slug,
   }));
@@ -13,7 +13,7 @@ export function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const article = getArticleBySlug(id);
+  const article = await getArticleBySlug(id);
   if (!article) return { title: "Article Not Found" };
 
   return {
@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function ArticlePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const article = getArticleBySlug(id);
+  const article = await getArticleBySlug(id);
 
   if (!article) {
     notFound();

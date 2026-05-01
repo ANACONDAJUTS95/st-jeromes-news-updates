@@ -1,10 +1,8 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { adminDb } from "@/lib/firebase-admin";
 
-const NEWS_DIR = path.join(process.cwd(), "content", "news");
 const API_KEY = process.env.WEBHOOK_API_KEY;
 
 export async function POST(req: NextRequest) {
@@ -28,22 +26,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Ensure directory exists
-    if (!fs.existsSync(NEWS_DIR)) {
-      fs.mkdirSync(NEWS_DIR, { recursive: true });
-    }
+    const { id, ...data } = body;
 
     // Check for duplicate
-    const filePath = path.join(NEWS_DIR, `${body.slug}.json`);
-    if (fs.existsSync(filePath)) {
+    const docRef = adminDb.collection("articles").doc(id);
+    const doc = await docRef.get();
+    
+    if (doc.exists) {
       return NextResponse.json(
-        { error: "Article with this slug already exists" },
+        { error: "Article with this ID already exists" },
         { status: 409 }
       );
     }
 
-    // Write article
-    fs.writeFileSync(filePath, JSON.stringify(body, null, 2));
+    // Write article to Firestore
+    await docRef.set({
+      ...data,
+      syncedAt: new Date().toISOString(),
+    });
 
     return NextResponse.json(
       { success: true, slug: body.slug },

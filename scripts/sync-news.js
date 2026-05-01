@@ -5,8 +5,11 @@
  * transforms posts with Gemini AI, and writes articles.
  */
 
+require('dotenv').config();
+
 const { chromium } = require("playwright");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require("@google/genai");
+const admin = require("firebase-admin");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -14,8 +17,33 @@ const crypto = require("crypto");
 // Config from environment
 const FB_URL = process.env.FB_URL || "https://m.facebook.com/profile.php?id=61578775710364";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const WEBHOOK_URL = process.env.WEBHOOK_URL;
-const WEBHOOK_API_KEY = process.env.WEBHOOK_API_KEY;
+const FIREBASE_SERVICE_ACCOUNT = process.env.FIREBASE_SERVICE_ACCOUNT;
+
+// Initialize Firebase Admin
+if (FIREBASE_SERVICE_ACCOUNT) {
+  try {
+    const serviceAccount = JSON.parse(FIREBASE_SERVICE_ACCOUNT);
+    // Extremely robust fix for PEM formatting
+    if (serviceAccount.private_key) {
+      // 1. Convert literal \n strings to actual newlines
+      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+      // 2. Ensure it has the correct BEGIN/END headers with newlines
+      if (!serviceAccount.private_key.startsWith('-----BEGIN PRIVATE KEY-----')) {
+        serviceAccount.private_key = `-----BEGIN PRIVATE KEY-----\n${serviceAccount.private_key}`;
+      }
+      if (!serviceAccount.private_key.endsWith('-----END PRIVATE KEY-----')) {
+        serviceAccount.private_key = `${serviceAccount.private_key}\n-----END PRIVATE KEY-----`;
+      }
+    }
+    
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+    console.log("✅ Firebase Admin initialized.");
+  } catch (err) {
+    console.error("❌ Firebase Admin initialization failed:", err.message);
+  }
+}
 
 // Paths
 const DATA_DIR = path.join(__dirname, "..", "data");
@@ -44,10 +72,29 @@ async function main() {
   const items = await scrapeFacebook(FB_URL);
   console.log(`📰 Found ${items.length} posts on page.`);
 
-  const newItems = items.filter((item) => {
+  const newItems = [];
+  for (const item of items) {
     const id = hashId(item.id || item.content);
-    return !processedIds.includes(id);
-  });
+    
+    // Check if ID is in local cache or Firestore
+    let alreadyProcessed = processedIds.includes(id);
+    
+    if (!alreadyProcessed && FIREBASE_SERVICE_ACCOUNT && admin.apps.length > 0) {
+      try {
+        const doc = await admin.firestore().collection("articles").doc(id).get();
+        if (doc.exists) {
+          alreadyProcessed = true;
+          processedIds.push(id); // Update local cache
+        }
+      } catch (err) {
+        console.warn(`⚠️ Error checking Firestore for ID ${id}:`, err.message);
+      }
+    }
+
+    if (!alreadyProcessed) {
+      newItems.push(item);
+    }
+  }
 
   console.log(`✨ ${newItems.length} new posts to process.`);
 
@@ -64,8 +111,8 @@ async function main() {
     try {
       const article = await transformWithAI(item);
 
-      if (WEBHOOK_URL && WEBHOOK_API_KEY) {
-        await postToApi(article);
+      if (admin.apps.length > 0) {
+        await saveArticleToFirestore(article);
       } else {
         writeArticleFile(article);
       }
@@ -204,8 +251,7 @@ async function transformWithAI(item) {
     return basicTransform({ ...item, content: cleanContent });
   }
 
-  const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
   const prompt = `You are an expert editorial assistant for "Jeromian Voice", a school news publication.
 Transform this Facebook post into a structured news article.
@@ -238,9 +284,11 @@ Output ONLY valid JSON:
 }
 `;
 
-  const result = await model.generateContent(prompt);
-  const response = await result.response;
-  const text = response.text().trim();
+  const result = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt
+  });
+  const text = result.text.trim();
   const jsonText = text.replace(/^```json\s*/, "").replace(/```\s*$/, "").trim();
 
   let parsed;
@@ -296,19 +344,14 @@ function basicTransform(item) {
   };
 }
 
-async function postToApi(article) {
-  const res = await fetch(WEBHOOK_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-API-KEY": WEBHOOK_API_KEY,
-    },
-    body: JSON.stringify(article),
+async function saveArticleToFirestore(article) {
+  const db = admin.firestore();
+  const { id, ...data } = article;
+  
+  await db.collection("articles").doc(id).set({
+    ...data,
+    syncedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
-
-  if (!res.ok) {
-    throw new Error(`API returned ${res.status}`);
-  }
 }
 
 function writeArticleFile(article) {
