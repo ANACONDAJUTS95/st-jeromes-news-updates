@@ -103,6 +103,15 @@ async function main() {
     return;
   }
 
+  // OPTIMIZATION: Limit to processing max 3 posts per run to avoid rate limits
+  const MAX_POSTS_PER_RUN = 3;
+  if (newItems.length > MAX_POSTS_PER_RUN) {
+    console.log(`⚠️ Too many new posts (${newItems.length}). Limiting to ${MAX_POSTS_PER_RUN} for this run to respect API limits.`);
+    newItems.splice(MAX_POSTS_PER_RUN);
+  }
+
+  const delay = (ms) => new Promise(res => setTimeout(res, ms));
+
   // Process each new item
   for (const item of newItems) {
     const id = hashId(item.id || item.content);
@@ -119,6 +128,12 @@ async function main() {
 
       processedIds.push(id);
       console.log(`✅ Saved: ${article.title}`);
+      
+      // OPTIMIZATION: Wait 5 seconds before the next post to avoid slamming Gemini
+      if (newItems.indexOf(item) !== newItems.length - 1) {
+        console.log(`⏳ Waiting 5 seconds before next post...`);
+        await delay(5000);
+      }
     } catch (err) {
       console.error(`❌ Failed to process post:`, err.message);
     }
@@ -284,10 +299,29 @@ Output ONLY valid JSON:
 }
 `;
 
-  const result = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: prompt
-  });
+  let result;
+  let retries = 2;
+  const delay = (ms) => new Promise(res => setTimeout(res, ms));
+
+  while (retries >= 0) {
+    try {
+      result = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt
+      });
+      break; // Success, exit retry loop
+    } catch (error) {
+      if (error.message.includes('503') || error.message.includes('429')) {
+        console.warn(`⚠️ Gemini API rate limit hit (${error.message}). Retrying in 15 seconds... (${retries} retries left)`);
+        if (retries === 0) throw error; // Out of retries
+        await delay(15000);
+        retries--;
+      } else {
+        throw error; // Not a rate limit error, throw immediately
+      }
+    }
+  }
+
   const text = result.text.trim();
   const jsonText = text.replace(/^```json\s*/, "").replace(/```\s*$/, "").trim();
 

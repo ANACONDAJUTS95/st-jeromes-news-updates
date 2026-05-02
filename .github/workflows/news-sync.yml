@@ -2,15 +2,16 @@ name: Sync Facebook News
 
 on:
   schedule:
-    # Run every 30 minutes
-    - cron: "*/30 * * * *"
-  workflow_dispatch: # Allow manual trigger
+    - cron: '0 0 */3 * *' # Every 3 days at midnight
+  workflow_dispatch: # Allow manual trigger from GitHub UI
+  repository_dispatch:
+    types: [sync-news] # Allow API trigger from Next.js
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
 
     steps:
       - name: Checkout repository
@@ -39,11 +40,6 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
           WEBHOOK_API_KEY: ${{ secrets.WEBHOOK_API_KEY }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
         run: node scripts/sync-news.js
-
-      - name: Commit and push changes
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add content/news/ data/processed_ids.json
-          git diff --cached --quiet || (git commit -m "chore: sync news from Facebook [$(date -u +%Y-%m-%d-%H:%M)]" && git push)
