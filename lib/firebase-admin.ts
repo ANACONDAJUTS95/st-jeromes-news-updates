@@ -20,7 +20,14 @@ function getAdminApp() {
   }
 
   try {
-    const serviceAccount = JSON.parse(serviceAccountVar);
+    let cleanedVar = serviceAccountVar.trim();
+    // Remove surrounding quotes if they exist (common issue in Vercel/env vars)
+    if ((cleanedVar.startsWith("'") && cleanedVar.endsWith("'")) || 
+        (cleanedVar.startsWith('"') && cleanedVar.endsWith('"'))) {
+      cleanedVar = cleanedVar.slice(1, -1);
+    }
+
+    const serviceAccount = JSON.parse(cleanedVar);
     if (serviceAccount.private_key) {
       // Fix for escaped newlines and missing headers
       serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
