@@ -1,68 +1,196 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
+
+const NAV_LINKS = [
+  { href: "/", label: "Home" },
+  { href: "/sections/news", label: "News" },
+  { href: "/sections/sports", label: "Sports" },
+  { href: "/sections/sci-tech", label: "Sci-Tech" },
+  { href: "/sections/editorial", label: "Editorial" },
+  { href: "/sections/opinion", label: "Opinion" },
+  { href: "/sections/feature", label: "Feature" },
+  { href: "/literary-folio", label: "Literary Folio" },
+  { href: "/gallery", label: "Gallery" },
+  { href: "/about", label: "About" },
+];
 
 export default function Masthead() {
   const [isScrolled, setIsScrolled] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const pathname = usePathname();
+  const headerRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
-    };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+    const onScroll = () => setIsScrolled(window.scrollY > 50);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   useEffect(() => {
-    if (isMobileMenuOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+    const updateHeight = () => {
+      if (headerRef.current) {
+        document.documentElement.style.setProperty(
+          "--masthead-height",
+          `${headerRef.current.offsetHeight}px`,
+        );
+      }
+    };
+    updateHeight();
+    window.addEventListener("resize", updateHeight);
+    return () => window.removeEventListener("resize", updateHeight);
+  }, []);
+
+  useEffect(() => {
+    document.body.style.overflow = isMenuOpen ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [isMobileMenuOpen]);
+  }, [isMenuOpen]);
 
-  const navLinks = [
-    { href: "/archives", label: "Archive" },
-    { href: "/news", label: "News" },
-    { href: "/spotlight", label: "Spotlight" },
-  ];
+  const today = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
     <>
       <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 bg-background/90 backdrop-blur-[24px] ${
-          isScrolled ? "shadow-academic" : ""
+        ref={headerRef}
+        className={`fixed top-0 inset-x-0 z-50 transition-colors duration-300 ${
+          isScrolled
+            ? "bg-background/96 backdrop-blur-2xl shadow-academic"
+            : "bg-background"
         }`}
       >
-        <div className="max-w-[1200px] mx-auto px-4 md:px-6 h-16 md:h-20 flex justify-between items-center">
-          <Link href="/" className="group">
-            <h1 className="font-serif text-xl md:text-3xl font-black tracking-tighter text-primary">
-              Jeromian<span className="text-gold opacity-60">.</span>
-            </h1>
-          </Link>
+        {/* ── Tier 1: Utility Bar (desktop, collapses on scroll) ─────── */}
+        <div
+          className={`hidden md:block border-b border-outline/30 overflow-hidden transition-all duration-500 ${
+            isScrolled
+              ? "max-h-0 opacity-0 pointer-events-none"
+              : "max-h-10 opacity-100"
+          }`}
+        >
+          <div className="container-tight flex items-center justify-between h-9">
+            <span className="text-label-sm">{today}</span>
+            <span className="text-label-sm hidden lg:block">
+              St. Jerome&apos;s Academy · Morong, Rizal
+            </span>
+            <span className="text-label-sm">
+              Vol. XII, No. 4 &middot; A.Y. 2025–2026
+            </span>
+          </div>
+        </div>
 
-          <nav className="flex items-center gap-4 md:gap-8">
-            <div className="hidden md:flex items-center gap-6 text-label-sm">
-              {navLinks.map((link) => (
+        {/* ── Tier 2: Wordmark Row (desktop, collapses on scroll) ────── */}
+        <div
+          className={`hidden md:block border-b border-outline/30 overflow-hidden transition-all duration-500 ${
+            isScrolled
+              ? "max-h-0 opacity-0 pointer-events-none"
+              : "max-h-36 opacity-100"
+          }`}
+        >
+          <div className="py-5 text-center">
+            <Link href="/" className="group block">
+              <p
+                className="font-serif font-black tracking-[-0.04em] text-primary leading-none group-hover:opacity-85 transition-opacity"
+                style={{ fontSize: "clamp(2.25rem, 4.5vw, 3.75rem)" }}
+              >
+                Jeromian
+                <span className="text-gold" style={{ opacity: 0.65 }}>
+                  {" "}
+                  Voice
+                </span>
+              </p>
+              <p
+                className="text-label-sm mt-2"
+                style={{ letterSpacing: "0.2em" }}
+              >
+                The Official Student Publication of St. Jerome&apos;s Academy
+              </p>
+            </Link>
+          </div>
+        </div>
+
+        {/* ── Tier 3: Navigation Bar (always visible) ───────────────── */}
+        <div className="border-b border-outline/30">
+          <div className="container-tight flex items-center h-11 md:h-10 gap-2">
+            {/* Mobile wordmark */}
+            <Link
+              href="/"
+              className="font-serif font-black text-primary text-lg tracking-tight md:hidden shrink-0"
+            >
+              Jeromian
+            </Link>
+
+            {/* Desktop compact logo — slides in when scrolled */}
+            <Link
+              href="/"
+              aria-hidden={!isScrolled}
+              className={`hidden md:block font-serif font-black text-primary tracking-tight text-sm shrink-0 overflow-hidden transition-all duration-500 ${
+                isScrolled
+                  ? "opacity-100 max-w-28 mr-3"
+                  : "opacity-0 max-w-0 mr-0 pointer-events-none"
+              }`}
+            >
+              Jeromian
+            </Link>
+
+            {/* Desktop nav links */}
+            <nav
+              className="hidden md:flex items-center flex-1 scrollbar-none"
+              aria-label="Main navigation"
+            >
+              {NAV_LINKS.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="py-2 hover:text-primary transition-colors"
+                  className={`shrink-0 px-2.5 py-2 font-sans font-bold uppercase whitespace-nowrap transition-colors ${
+                    isActive(link.href)
+                      ? "text-primary border-b-2 border-primary"
+                      : "text-on-surface-muted hover:text-primary"
+                  }`}
+                  style={{ fontSize: "0.59rem", letterSpacing: "0.1em" }}
                 >
                   {link.label}
                 </Link>
               ))}
-            </div>
+            </nav>
 
-            <div className="flex items-center gap-3 md:gap-4">
+            {/* Right actions */}
+            <div className="flex items-center gap-0 ml-auto shrink-0">
               <button
-                className="hover:text-primary transition-colors cursor-pointer p-2"
+                className="p-2.5 text-on-surface-muted hover:text-primary transition-colors cursor-pointer"
                 aria-label="Search"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  className="w-4 h-4"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+                  />
+                </svg>
+              </button>
+
+              {/* Mobile hamburger */}
+              <button
+                className="md:hidden p-2.5 text-on-surface-muted hover:text-primary transition-colors cursor-pointer"
+                onClick={() => setIsMenuOpen(true)}
+                aria-label="Open menu"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -75,53 +203,40 @@ export default function Masthead() {
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
-                  />
-                </svg>
-              </button>
-              <button className="btn-minimal text-xs py-2 px-4 hidden sm:inline-flex">
-                Subscribe
-              </button>
-
-              <button
-                className="md:hidden p-2 hover:text-primary transition-colors cursor-pointer"
-                onClick={() => setIsMobileMenuOpen(true)}
-                aria-label="Open menu"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={2}
-                  stroke="currentColor"
-                  className="w-6 h-6"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
                     d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
                   />
                 </svg>
               </button>
             </div>
-          </nav>
+          </div>
         </div>
       </header>
 
-      {/* Mobile Menu Overlay */}
-      {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-[100] md:hidden">
+      {/* ── Mobile Drawer ──────────────────────────────────────────── */}
+      {isMenuOpen && (
+        <div className="fixed inset-0 z-100 md:hidden">
+          {/* Backdrop */}
           <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setIsMobileMenuOpen(false)}
+            className="absolute inset-0 bg-primary/40 backdrop-blur-sm"
+            onClick={() => setIsMenuOpen(false)}
           />
 
-          <div className="absolute right-0 top-0 bottom-0 w-[80vw] max-w-[320px] bg-surface shadow-academic flex flex-col animate-slide-up">
-            <div className="flex items-center justify-between p-4 border-b border-outline-variant">
-              <span className="text-label-caps text-secondary">Menu</span>
+          {/* Drawer panel */}
+          <div className="absolute right-0 top-0 h-full w-[80vw] max-w-sm bg-surface shadow-academic flex flex-col animate-slide-up">
+            {/* Drawer header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-outline/30">
+              <div>
+                <p
+                  className="font-serif font-black text-primary leading-none"
+                  style={{ fontSize: "1.3rem" }}
+                >
+                  Jeromian Voice
+                </p>
+                <p className="text-label-sm mt-1">St. Jerome&apos;s Academy</p>
+              </div>
               <button
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="p-2 hover:text-primary transition-colors cursor-pointer"
+                onClick={() => setIsMenuOpen(false)}
+                className="p-2 text-on-surface-muted hover:text-primary transition-colors cursor-pointer"
                 aria-label="Close menu"
               >
                 <svg
@@ -130,7 +245,7 @@ export default function Masthead() {
                   viewBox="0 0 24 24"
                   strokeWidth={2}
                   stroke="currentColor"
-                  className="w-6 h-6"
+                  className="w-5 h-5"
                 >
                   <path
                     strokeLinecap="round"
@@ -141,38 +256,31 @@ export default function Masthead() {
               </button>
             </div>
 
-            <nav className="flex-1 p-4">
-              <ul className="space-y-1">
-                {navLinks.map((link) => (
-                  <li key={link.href}>
-                    <Link
-                      href={link.href}
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      className="block py-4 px-3 text-lg font-serif font-bold text-primary hover:bg-surface-muted rounded-sm transition-colors"
-                    >
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="mt-8 px-3">
-                <button className="btn-minimal w-full text-sm">
-                  Subscribe
-                </button>
-              </div>
+            {/* Nav links */}
+            <nav className="flex-1 overflow-y-auto py-2">
+              {NAV_LINKS.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setIsMenuOpen(false)}
+                  className={`flex items-center justify-between px-5 py-4 font-serif font-bold text-base border-b border-outline/20 transition-colors ${
+                    isActive(link.href)
+                      ? "text-secondary bg-surface-muted/60"
+                      : "text-primary hover:bg-surface-muted/30"
+                  }`}
+                >
+                  <span>{link.label}</span>
+                  <span className="text-secondary text-xs">→</span>
+                </Link>
+              ))}
             </nav>
 
-            <div className="p-4 bg-surface-muted/50">
-              <div className="flex items-center justify-between text-label-sm">
-                <span>{new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
-                <span className="flex items-center gap-1.5">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15a4.5 4.5 0 0 0 4.5 4.5H18a3.75 3.75 0 0 0 1.332-7.257 3 3 0 0 0-3.758-3.848 5.25 5.25 0 0 0-10.233 2.33A4.502 4.502 0 0 0 2.25 15Z" />
-                  </svg>
-                  31&deg;C Overcast
-                </span>
-              </div>
+            {/* Drawer footer */}
+            <div className="px-5 py-4 bg-surface-muted/40 border-t border-outline/30">
+              <p className="text-label-sm">{today}</p>
+              <p className="text-label-sm mt-1 text-secondary">
+                Vol. XII, No. 4
+              </p>
             </div>
           </div>
         </div>

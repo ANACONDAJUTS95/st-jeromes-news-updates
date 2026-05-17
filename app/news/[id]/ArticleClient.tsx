@@ -83,14 +83,16 @@ export default function ArticleClient({ article }: Props) {
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16">
               <div className="lg:col-span-8 space-y-10 md:space-y-12">
-                <div className="relative aspect-video bg-surface rounded-sm overflow-hidden shadow-academic">
-                  <Image 
-                    src={article.image || "/next.svg"} 
-                    alt={article.title} 
-                    fill 
-                    className={`object-cover transition-transform duration-1000 ${!article.image ? 'p-12 md:p-20 opacity-20' : 'opacity-90'}`} 
-                  />
-                </div>
+                {article.image && (
+                  <div className="relative aspect-video bg-surface rounded-sm overflow-hidden shadow-academic">
+                    <Image
+                      src={article.image}
+                      alt={article.title}
+                      fill
+                      className="object-cover opacity-90 transition-transform duration-1000"
+                    />
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between py-4 md:py-6 border-b border-outline/30">
                   <div className="flex items-center gap-4">
@@ -138,9 +140,9 @@ export default function ArticleClient({ article }: Props) {
 
         {/* Reading Mode Layout */}
         {isReadingMode && (
-          <div className="fixed inset-0 z-50 overflow-y-auto pb-40">
+          <div className={`fixed inset-0 z-50 overflow-y-auto pb-40 ${themeClasses[theme]}`}>
             {/* Top Toolbar */}
-            <div className={`sticky top-0 w-full z-[60] border-b ${toolbarBorder} ${toolbarBg} backdrop-blur-[24px]`}>
+            <div className={`sticky top-0 w-full z-60 border-b ${toolbarBorder} ${toolbarBg} backdrop-blur-xl`}>
               <div className="max-w-4xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
                 <button
                   onClick={() => setIsReadingMode(false)}

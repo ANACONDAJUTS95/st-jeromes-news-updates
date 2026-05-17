@@ -14,8 +14,12 @@ const newsreader = Newsreader({
 });
 
 export const metadata: Metadata = {
-  title: "St. Jerome's News Updates",
-  description: "The Digital Curator for Scholarly Archives",
+  title: {
+    default: "Jeromian Voice",
+    template: "%s | Jeromian Voice",
+  },
+  description:
+    "The official student publication of St. Jerome's Academy, Morong, Rizal — covering news, sports, science, culture, and the creative arts.",
 };
 
 export default function RootLayout({
@@ -25,9 +29,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${inter.variable} ${newsreader.variable} antialiased`}
-      >
+      <body className={`${inter.variable} ${newsreader.variable} antialiased`}>
         {children}
       </body>
     </html>

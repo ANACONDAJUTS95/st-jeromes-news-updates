@@ -41,14 +41,16 @@ export default async function NewsPage() {
             <div className="lg:col-span-8 space-y-12 md:space-y-16">
               {featured ? (
                 <Link href={`/news/${featured.slug}`} className="group cursor-pointer block">
-                  <div className="relative aspect-[16/9] bg-surface rounded-sm overflow-hidden mb-6 md:mb-8 shadow-academic">
-                    <Image
-                      src={featured.image || "/next.svg"}
-                      alt={featured.title}
-                      fill
-                      className={`object-cover transition-transform duration-1000 group-hover:scale-105 ${!featured.image ? 'p-20 opacity-20' : 'opacity-90'}`}
-                    />
-                  </div>
+                  {featured.image && (
+                    <div className="relative aspect-[16/9] bg-surface rounded-sm overflow-hidden mb-6 md:mb-8 shadow-academic">
+                      <Image
+                        src={featured.image}
+                        alt={featured.title}
+                        fill
+                        className="object-cover opacity-90 transition-transform duration-1000 group-hover:scale-105"
+                      />
+                    </div>
+                  )}
                   <div className="space-y-5">
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                       <span className="px-2 py-0.5 bg-surface-container text-[10px] font-bold uppercase tracking-wider rounded-sm text-secondary">
@@ -98,14 +100,16 @@ export default async function NewsPage() {
                         </span>
                       </div>
                     </div>
-                    <div className="w-full md:w-52 h-40 md:h-36 bg-surface rounded-sm relative overflow-hidden flex-shrink-0 shadow-academic">
-                      <Image 
-                        src={article.image || "/window.svg"} 
-                        alt={article.title} 
-                        fill 
-                        className={`object-cover transition-transform duration-700 group-hover:scale-105 ${!article.image ? 'p-8 opacity-20' : 'opacity-90'}`} 
-                      />
-                    </div>
+                    {article.image && (
+                      <div className="w-full md:w-52 h-40 md:h-36 bg-surface rounded-sm relative overflow-hidden shrink-0 shadow-academic">
+                        <Image
+                          src={article.image}
+                          alt={article.title}
+                          fill
+                          className="object-cover opacity-90 transition-transform duration-700 group-hover:scale-105"
+                        />
+                      </div>
+                    )}
                   </Link>
                 ))}
 

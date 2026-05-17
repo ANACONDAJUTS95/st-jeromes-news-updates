@@ -18,22 +18,20 @@ export interface Article {
   };
 }
 
-// Helper to sanitize Firestore data (converts Timestamps to strings)
-function sanitizeData(data: any) {
-  if (!data) return data;
+type FirestoreTimestamp = { toDate: () => Date } | { _seconds: number } | string;
+
+function sanitizeData(data: Record<string, unknown>): Record<string, unknown> {
   const sanitized = { ...data };
-  
-  if (sanitized.syncedAt) {
-    if (typeof sanitized.syncedAt.toDate === 'function') {
-      sanitized.syncedAt = sanitized.syncedAt.toDate().toISOString();
-    } else if (sanitized.syncedAt._seconds) {
-      sanitized.syncedAt = new Date(sanitized.syncedAt._seconds * 1000).toISOString();
-    } else if (typeof sanitized.syncedAt === 'string') {
-      // already a string, do nothing
+  const syncedAt = sanitized.syncedAt as FirestoreTimestamp | undefined;
+
+  if (syncedAt) {
+    if (typeof syncedAt === "object" && "toDate" in syncedAt) {
+      sanitized.syncedAt = syncedAt.toDate().toISOString();
+    } else if (typeof syncedAt === "object" && "_seconds" in syncedAt) {
+      sanitized.syncedAt = new Date(syncedAt._seconds * 1000).toISOString();
     }
   }
 
-  // Ensure other potential non-serializable fields are clean
   return sanitized;
 }
 
@@ -80,9 +78,11 @@ export async function getArticleById(id: string): Promise<Article | null> {
     const doc = await adminDb.collection("articles").doc(id).get();
     if (!doc.exists) return null;
 
+    const data = doc.data();
+    if (!data) return null;
     return {
       id: doc.id,
-      ...(sanitizeData(doc.data()) as Omit<Article, "id">),
+      ...(sanitizeData(data) as Omit<Article, "id">),
     };
   } catch (error) {
     console.error(`Error fetching article by id ${id}:`, error);

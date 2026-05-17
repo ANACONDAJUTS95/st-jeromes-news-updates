@@ -13,11 +13,14 @@ const admin = require("firebase-admin");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const https = require("https");
+const http = require("http");
 
 // Config from environment
 const FB_URL = process.env.FB_URL || "https://m.facebook.com/profile.php?id=61578775710364";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const FIREBASE_SERVICE_ACCOUNT = process.env.FIREBASE_SERVICE_ACCOUNT;
+const FIREBASE_STORAGE_BUCKET = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || `${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.firebasestorage.app`;
 
 // Initialize Firebase Admin
 if (FIREBASE_SERVICE_ACCOUNT) {
@@ -38,6 +41,7 @@ if (FIREBASE_SERVICE_ACCOUNT) {
     
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
+      storageBucket: FIREBASE_STORAGE_BUCKET,
     });
     console.log("✅ Firebase Admin initialized.");
   } catch (err) {
@@ -378,10 +382,55 @@ function basicTransform(item) {
   };
 }
 
+function downloadImageBuffer(url) {
+  return new Promise((resolve, reject) => {
+    const protocol = url.startsWith("https") ? https : http;
+    const request = protocol.get(url, { headers: { "User-Agent": "Mozilla/5.0" } }, (res) => {
+      if (res.statusCode !== 200) {
+        reject(new Error(`Image download failed with status ${res.statusCode}`));
+        return;
+      }
+      const chunks = [];
+      res.on("data", (chunk) => chunks.push(chunk));
+      res.on("end", () => resolve({
+        buffer: Buffer.concat(chunks),
+        contentType: res.headers["content-type"] || "image/jpeg",
+      }));
+      res.on("error", reject);
+    });
+    request.on("error", reject);
+    request.setTimeout(15000, () => { request.destroy(); reject(new Error("Image download timed out")); });
+  });
+}
+
+async function uploadImageToStorage(imageUrl, articleId) {
+  if (!imageUrl || !imageUrl.includes("fbcdn")) return imageUrl;
+  try {
+    console.log(`📸 Downloading image for article ${articleId}...`);
+    const { buffer, contentType } = await downloadImageBuffer(imageUrl);
+    const ext = contentType.includes("png") ? "png" : "jpg";
+    const bucket = admin.storage().bucket();
+    const file = bucket.file(`articles/${articleId}.${ext}`);
+    await file.save(buffer, { contentType });
+    await file.makePublic();
+    const storageUrl = `https://storage.googleapis.com/${bucket.name}/articles/${articleId}.${ext}`;
+    console.log(`✅ Image uploaded to Firebase Storage`);
+    return storageUrl;
+  } catch (err) {
+    console.warn(`⚠️ Could not upload image: ${err.message}. Using original URL.`);
+    return imageUrl;
+  }
+}
+
 async function saveArticleToFirestore(article) {
   const db = admin.firestore();
   const { id, ...data } = article;
-  
+
+  // Migrate Facebook CDN image to Firebase Storage for permanent hosting
+  if (data.image && data.image.includes("fbcdn")) {
+    data.image = await uploadImageToStorage(data.image, id);
+  }
+
   await db.collection("articles").doc(id).set({
     ...data,
     syncedAt: admin.firestore.FieldValue.serverTimestamp(),
