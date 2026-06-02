@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged, User, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { auth } from '@/lib/firebase';
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -11,15 +10,23 @@ export function useAuth() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
-      
+
       if (user) {
-        // Check if user's email is in the 'admins' collection
-        const adminDoc = await getDoc(doc(db, 'admins', user.email!));
-        setIsAdmin(adminDoc.exists());
+        try {
+          const token = await user.getIdToken();
+          const res = await fetch('/api/auth/check-admin', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = await res.json();
+          setIsAdmin(data.isAdmin === true);
+        } catch {
+          setIsAdmin(false);
+        }
       } else {
         setIsAdmin(false);
       }
-      
+
       setLoading(false);
     });
 

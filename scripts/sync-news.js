@@ -54,50 +54,54 @@ const DATA_DIR = path.join(__dirname, "..", "data");
 const NEWS_DIR = path.join(__dirname, "..", "content", "news");
 const PROCESSED_IDS_PATH = path.join(DATA_DIR, "processed_ids.json");
 
+/**
+ * Stable ID: keyed on the post URL so the same Facebook post always maps
+ * to the same Firestore document ID across every run.
+ */
+function stableId(item) {
+  return hashId(item.link || item.content.slice(0, 300));
+}
+
+/**
+ * Two-pass duplicate check:
+ * 1. Fast path — document ID lookup (O(1))
+ * 2. Fallback  — query by originalUrl to catch ID mismatches from old runs
+ */
+async function existsInFirestore(id, link) {
+  if (!FIREBASE_SERVICE_ACCOUNT || !admin.apps.length) return false;
+  try {
+    const db = admin.firestore();
+    const byId = await db.collection("articles").doc(id).get();
+    if (byId.exists) return true;
+
+    if (link) {
+      const byUrl = await db.collection("articles")
+        .where("originalUrl", "==", link)
+        .limit(1)
+        .get();
+      if (!byUrl.empty) return true;
+    }
+  } catch (err) {
+    console.warn(`⚠️ Firestore check error for ${id}:`, err.message);
+  }
+  return false;
+}
+
 async function main() {
   console.log("🚀 Starting browser-based news sync...");
 
-  // Ensure directories exist
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(NEWS_DIR)) fs.mkdirSync(NEWS_DIR, { recursive: true });
 
-  // Load processed IDs
-  let processedIds = [];
-  if (fs.existsSync(PROCESSED_IDS_PATH)) {
-    try {
-      processedIds = JSON.parse(fs.readFileSync(PROCESSED_IDS_PATH, "utf-8"));
-    } catch (e) {
-      processedIds = [];
-    }
-  }
-
-  // Scrape Facebook
   console.log(`📡 Launching browser to scrape: ${FB_URL}`);
   const items = await scrapeFacebook(FB_URL);
   console.log(`📰 Found ${items.length} posts on page.`);
 
   const newItems = [];
   for (const item of items) {
-    const id = hashId(item.id || item.content);
-    
-    // Check if ID is in local cache or Firestore
-    let alreadyProcessed = processedIds.includes(id);
-    
-    if (!alreadyProcessed && FIREBASE_SERVICE_ACCOUNT && admin.apps.length > 0) {
-      try {
-        const doc = await admin.firestore().collection("articles").doc(id).get();
-        if (doc.exists) {
-          alreadyProcessed = true;
-          processedIds.push(id); // Update local cache
-        }
-      } catch (err) {
-        console.warn(`⚠️ Error checking Firestore for ID ${id}:`, err.message);
-      }
-    }
-
-    if (!alreadyProcessed) {
-      newItems.push(item);
-    }
+    const id = stableId(item);
+    const already = await existsInFirestore(id, item.link);
+    if (!already) newItems.push(item);
   }
 
   console.log(`✨ ${newItems.length} new posts to process.`);
@@ -107,18 +111,17 @@ async function main() {
     return;
   }
 
-  // OPTIMIZATION: Limit to processing max 3 posts per run to avoid rate limits
   const MAX_POSTS_PER_RUN = 3;
   if (newItems.length > MAX_POSTS_PER_RUN) {
-    console.log(`⚠️ Too many new posts (${newItems.length}). Limiting to ${MAX_POSTS_PER_RUN} for this run to respect API limits.`);
+    console.log(`⚠️ Limiting to ${MAX_POSTS_PER_RUN} posts this run to respect API limits.`);
     newItems.splice(MAX_POSTS_PER_RUN);
   }
 
   const delay = (ms) => new Promise(res => setTimeout(res, ms));
+  let saved = 0;
 
-  // Process each new item
-  for (const item of newItems) {
-    const id = hashId(item.id || item.content);
+  for (let i = 0; i < newItems.length; i++) {
+    const item = newItems[i];
     console.log(`\n📝 Processing post from ${item.timestamp || "unknown date"}`);
 
     try {
@@ -130,12 +133,11 @@ async function main() {
         writeArticleFile(article);
       }
 
-      processedIds.push(id);
+      saved++;
       console.log(`✅ Saved: ${article.title}`);
-      
-      // OPTIMIZATION: Wait 5 seconds before the next post to avoid slamming Gemini
-      if (newItems.indexOf(item) !== newItems.length - 1) {
-        console.log(`⏳ Waiting 5 seconds before next post...`);
+
+      if (i < newItems.length - 1) {
+        console.log("⏳ Waiting 5 seconds before next post...");
         await delay(5000);
       }
     } catch (err) {
@@ -143,9 +145,7 @@ async function main() {
     }
   }
 
-  // Save processed IDs
-  fs.writeFileSync(PROCESSED_IDS_PATH, JSON.stringify(processedIds, null, 2));
-  console.log(`\n🎉 Sync complete. ${newItems.length} article(s) processed.`);
+  console.log(`\n🎉 Sync complete. ${saved} article(s) saved.`);
 }
 
 async function scrapeFacebook(url) {
@@ -214,7 +214,7 @@ async function scrapeFacebook(url) {
         const timeLink = el.querySelector('a[role="link"]');
         
         return {
-          id: el.getAttribute('id') || Math.random().toString(36).substr(2, 9),
+          id: el.getAttribute('id') || '',
           content: text,
           image: imgSrc,
           timestamp: timeLink ? timeLink.getAttribute('aria-label') || timeLink.innerText : new Date().toISOString(),
@@ -265,10 +265,13 @@ function stripNewsPrefix(title) {
 
 async function transformWithAI(item) {
   const cleanContent = cleanUnicode(item.content);
-  
+
   if (!GEMINI_API_KEY) {
     return basicTransform({ ...item, content: cleanContent });
   }
+
+  // Use the stable ID so the article ID always matches the dedup key
+  const stableArticleId = stableId(item);
 
   const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
@@ -338,7 +341,7 @@ Output ONLY valid JSON:
 
   // Final cleanup and formatting
   let finalTitle = stripNewsPrefix(parsed.title || cleanContent.split('\n')[0]);
-  const id = hashId(item.id || item.content);
+  const id = stableArticleId;
   const slug = slugify(finalTitle) || `article-${id}`;
 
   // Construct content with credits if available
@@ -366,7 +369,7 @@ Output ONLY valid JSON:
 }
 
 function basicTransform(item) {
-  const id = hashId(item.id || item.content);
+  const id = stableId(item);
   let title = stripNewsPrefix(item.content.split('\n')[0]).slice(0, 50) || "News Update";
 
   return {
@@ -426,12 +429,23 @@ async function saveArticleToFirestore(article) {
   const db = admin.firestore();
   const { id, ...data } = article;
 
-  // Migrate Facebook CDN image to Firebase Storage for permanent hosting
+  const docRef = db.collection("articles").doc(id);
+
+  // Final guard — never overwrite an article that already exists.
+  // This protects permanent Storage URLs from being replaced by
+  // a fresh (but expiring) fbcdn URL on a repeat scrape.
+  const existing = await docRef.get();
+  if (existing.exists) {
+    console.log(`⏭️  Article "${data.title}" already exists — skipping write.`);
+    return;
+  }
+
+  // Migrate image from expiring Facebook CDN to permanent Firebase Storage
   if (data.image && data.image.includes("fbcdn")) {
     data.image = await uploadImageToStorage(data.image, id);
   }
 
-  await db.collection("articles").doc(id).set({
+  await docRef.set({
     ...data,
     syncedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
