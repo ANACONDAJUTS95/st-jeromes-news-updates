@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { 
-  Search, RefreshCw, ExternalLink, Calendar, 
+import {
+  Search, RefreshCw, ExternalLink, Calendar,
   CheckCircle2, AlertCircle, Loader2, LogOut,
   LayoutDashboard, Newspaper, Activity, Settings,
-  ArrowUpRight, Clock, Database, Menu, X, Trash2, ShieldAlert
+  ArrowUpRight, Clock, Database, Menu, X, Trash2, ShieldAlert, Wifi
 } from 'lucide-react';
 import { Article } from '@/lib/articles';
 import { useAuth } from '@/hooks/useAuth';
@@ -22,6 +22,8 @@ export default function AdminClient({ initialArticles }: AdminClientProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testResults, setTestResults] = useState<{ ok: boolean; results: Record<string, { ok: boolean; detail: string }> } | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   
@@ -87,6 +89,24 @@ export default function AdminClient({ initialArticles }: AdminClientProps) {
     setIsDeleteModalOpen(true);
   };
 
+  const handleTestConnection = async () => {
+    setTesting(true);
+    setTestResults(null);
+    try {
+      const token = await user?.getIdToken();
+      const res = await fetch('/api/admin/test-connection', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setTestResults(data);
+    } catch {
+      setTestResults({ ok: false, results: { network: { ok: false, detail: 'Could not reach the server' } } });
+    } finally {
+      setTesting(false);
+    }
+  };
+
   const handleSync = async () => {
     setSyncing(true);
     setSyncStatus(null);
@@ -104,7 +124,7 @@ export default function AdminClient({ initialArticles }: AdminClientProps) {
       const data = await response.json();
 
       if (response.ok) {
-        setSyncStatus({ type: 'success', message: 'Sync command dispatched to GitHub Archives.' });
+        setSyncStatus({ type: 'success', message: 'Sync pipeline dispatched. The GitHub Action runs in the background — new articles appear in 3–5 minutes. Refresh this page after a moment.' });
       } else {
         setSyncStatus({ type: 'error', message: data.error || 'Failed to trigger sync' });
       }
@@ -200,7 +220,19 @@ export default function AdminClient({ initialArticles }: AdminClientProps) {
                 </p>
               </div>
               
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  onClick={handleTestConnection}
+                  disabled={testing}
+                  className="btn-outline group px-4 py-2 text-xs"
+                >
+                  {testing ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" />
+                  ) : (
+                    <Wifi className="w-3.5 h-3.5 mr-2" />
+                  )}
+                  <span>{testing ? 'Testing...' : 'Test Connection'}</span>
+                </button>
                 <button
                   onClick={handleSync}
                   disabled={syncing}
@@ -244,20 +276,70 @@ export default function AdminClient({ initialArticles }: AdminClientProps) {
                 </div>
                 <div>
                   <p className="text-[10px] uppercase tracking-widest font-bold text-on-surface-muted m-0">Latest Sync</p>
-                  <p className="text-xl font-serif font-bold text-primary mt-0.5">Today, 1:20 AM</p>
+                  <p className="text-xl font-serif font-bold text-primary mt-0.5">
+                    {(() => {
+                      const latest = initialArticles
+                        .map(a => a.syncedAt)
+                        .filter(Boolean)
+                        .sort()
+                        .at(-1);
+                      if (!latest) return 'Never';
+                      const d = new Date(latest);
+                      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+                        ', ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                    })()}
+                  </p>
                 </div>
               </div>
             </div>
 
+            {/* Connection Test Results */}
+            {testResults && (
+              <div className={`rounded-sm border animate-slide-up overflow-hidden ${testResults.ok ? 'border-emerald-500/20' : 'border-secondary/20'}`}>
+                <div className={`px-5 py-3 flex items-center gap-3 ${testResults.ok ? 'bg-emerald-500/5' : 'bg-secondary/5'}`}>
+                  {testResults.ok
+                    ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    : <AlertCircle className="w-4 h-4 text-secondary shrink-0" />}
+                  <p className={`text-label-caps m-0 ${testResults.ok ? 'text-emerald-700' : 'text-secondary'}`}>
+                    {testResults.ok ? 'All systems operational' : 'Connection issues detected'}
+                  </p>
+                  <button onClick={() => setTestResults(null)} className="ml-auto text-on-surface-muted hover:text-primary transition-colors">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="divide-y divide-outline/20">
+                  {Object.entries(testResults.results).map(([key, val]) => (
+                    <div key={key} className="px-5 py-3 flex items-start gap-3 bg-surface">
+                      <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${val.ok ? 'bg-emerald-500' : 'bg-secondary'}`} />
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-muted m-0">{key}</p>
+                        <p className="text-sm font-serif text-primary m-0 mt-0.5">{val.detail}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Sync Notification */}
             {syncStatus && (
-              <div className={`p-6 rounded-sm border flex items-center gap-4 animate-slide-up ${
-                syncStatus.type === 'success' 
-                  ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-800' 
+              <div className={`p-5 rounded-sm border flex items-start gap-4 animate-slide-up ${
+                syncStatus.type === 'success'
+                  ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-800'
                   : 'bg-secondary/5 border-secondary/20 text-secondary'
               }`}>
-                {syncStatus.type === 'success' ? <CheckCircle2 className="w-6 h-6" /> : <AlertCircle className="w-6 h-6" />}
-                <p className="font-serif text-lg m-0">{syncStatus.message}</p>
+                {syncStatus.type === 'success' ? <CheckCircle2 className="w-5 h-5 mt-0.5 shrink-0" /> : <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />}
+                <div className="flex-1 min-w-0">
+                  <p className="font-serif text-base m-0 leading-snug">{syncStatus.message}</p>
+                  {syncStatus.type === 'success' && (
+                    <button
+                      onClick={() => window.location.reload()}
+                      className="mt-3 text-[10px] font-bold uppercase tracking-widest underline underline-offset-2 opacity-70 hover:opacity-100 transition-opacity"
+                    >
+                      Refresh page →
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 

@@ -9,44 +9,57 @@ require('dotenv').config();
 
 const { chromium } = require("playwright");
 const { GoogleGenAI } = require("@google/genai");
+const { v2: cloudinary } = require("cloudinary");
 const admin = require("firebase-admin");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-const https = require("https");
-const http = require("http");
 
 // Config from environment
 const FB_URL = process.env.FB_URL || "https://m.facebook.com/profile.php?id=61578775710364";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const FIREBASE_SERVICE_ACCOUNT = process.env.FIREBASE_SERVICE_ACCOUNT;
-const FIREBASE_STORAGE_BUCKET = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || `${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.firebasestorage.app`;
 
-// Initialize Firebase Admin
-if (FIREBASE_SERVICE_ACCOUNT) {
-  try {
-    const serviceAccount = JSON.parse(FIREBASE_SERVICE_ACCOUNT);
-    // Extremely robust fix for PEM formatting
-    if (serviceAccount.private_key) {
-      // 1. Convert literal \n strings to actual newlines
-      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
-      // 2. Ensure it has the correct BEGIN/END headers with newlines
-      if (!serviceAccount.private_key.startsWith('-----BEGIN PRIVATE KEY-----')) {
-        serviceAccount.private_key = `-----BEGIN PRIVATE KEY-----\n${serviceAccount.private_key}`;
-      }
-      if (!serviceAccount.private_key.endsWith('-----END PRIVATE KEY-----')) {
-        serviceAccount.private_key = `${serviceAccount.private_key}\n-----END PRIVATE KEY-----`;
-      }
+// Cloudinary (free image hosting — replaces Firebase Storage)
+if (process.env.CLOUDINARY_CLOUD_NAME) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+    secure: true,
+  });
+  console.log(`☁️  Cloudinary configured: ${process.env.CLOUDINARY_CLOUD_NAME}`);
+} else {
+  console.warn("⚠️  CLOUDINARY_CLOUD_NAME not set — images will use expiring fbcdn URLs.");
+}
+
+// Initialize Firebase Admin — hard-fail if credentials are missing or broken.
+// Without Firebase Admin, articles cannot be saved and the run is pointless.
+if (!FIREBASE_SERVICE_ACCOUNT) {
+  console.error("❌ FATAL: FIREBASE_SERVICE_ACCOUNT env var is not set. Aborting.");
+  process.exit(1);
+}
+
+try {
+  const serviceAccount = JSON.parse(FIREBASE_SERVICE_ACCOUNT);
+  if (serviceAccount.private_key) {
+    serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+    if (!serviceAccount.private_key.startsWith('-----BEGIN PRIVATE KEY-----')) {
+      serviceAccount.private_key = `-----BEGIN PRIVATE KEY-----\n${serviceAccount.private_key}`;
     }
-    
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-      storageBucket: FIREBASE_STORAGE_BUCKET,
-    });
-    console.log("✅ Firebase Admin initialized.");
-  } catch (err) {
-    console.error("❌ Firebase Admin initialization failed:", err.message);
+    if (!serviceAccount.private_key.endsWith('-----END PRIVATE KEY-----')) {
+      serviceAccount.private_key = `${serviceAccount.private_key}\n-----END PRIVATE KEY-----`;
+    }
   }
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+  console.log("✅ Firebase Admin initialized.");
+  console.log(`   Project:  ${serviceAccount.project_id}`);
+} catch (err) {
+  console.error("❌ FATAL: Firebase Admin initialization failed:", err.message);
+  console.error("   Check that FIREBASE_SERVICE_ACCOUNT is valid JSON with a correct private_key.");
+  process.exit(1);
 }
 
 // Paths
@@ -63,28 +76,19 @@ function stableId(item) {
 }
 
 /**
- * Two-pass duplicate check:
- * 1. Fast path — document ID lookup (O(1))
- * 2. Fallback  — query by originalUrl to catch ID mismatches from old runs
+ * Duplicate check by stable document ID only.
+ * Deleted articles return false → they will be re-created on the next sync.
+ * This means admins can delete + resync to force a fresh fetch.
  */
-async function existsInFirestore(id, link) {
+async function existsInFirestore(id) {
   if (!FIREBASE_SERVICE_ACCOUNT || !admin.apps.length) return false;
   try {
-    const db = admin.firestore();
-    const byId = await db.collection("articles").doc(id).get();
-    if (byId.exists) return true;
-
-    if (link) {
-      const byUrl = await db.collection("articles")
-        .where("originalUrl", "==", link)
-        .limit(1)
-        .get();
-      if (!byUrl.empty) return true;
-    }
+    const doc = await admin.firestore().collection("articles").doc(id).get();
+    return doc.exists;
   } catch (err) {
     console.warn(`⚠️ Firestore check error for ${id}:`, err.message);
+    return false;
   }
-  return false;
 }
 
 async function main() {
@@ -93,6 +97,16 @@ async function main() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(NEWS_DIR)) fs.mkdirSync(NEWS_DIR, { recursive: true });
 
+  // Verify Firestore is reachable before spending time scraping
+  console.log("🔥 Verifying Firestore connection...");
+  try {
+    await admin.firestore().collection("articles").limit(1).get();
+    console.log("✅ Firestore connection verified.");
+  } catch (err) {
+    console.error("❌ FATAL: Cannot reach Firestore:", err.message);
+    process.exit(1);
+  }
+
   console.log(`📡 Launching browser to scrape: ${FB_URL}`);
   const items = await scrapeFacebook(FB_URL);
   console.log(`📰 Found ${items.length} posts on page.`);
@@ -100,7 +114,7 @@ async function main() {
   const newItems = [];
   for (const item of items) {
     const id = stableId(item);
-    const already = await existsInFirestore(id, item.link);
+    const already = await existsInFirestore(id);
     if (!already) newItems.push(item);
   }
 
@@ -127,11 +141,7 @@ async function main() {
     try {
       const article = await transformWithAI(item);
 
-      if (admin.apps.length > 0) {
-        await saveArticleToFirestore(article);
-      } else {
-        writeArticleFile(article);
-      }
+      await saveArticleToFirestore(article);
 
       saved++;
       console.log(`✅ Saved: ${article.title}`);
@@ -385,40 +395,20 @@ function basicTransform(item) {
   };
 }
 
-function downloadImageBuffer(url) {
-  return new Promise((resolve, reject) => {
-    const protocol = url.startsWith("https") ? https : http;
-    const request = protocol.get(url, { headers: { "User-Agent": "Mozilla/5.0" } }, (res) => {
-      if (res.statusCode !== 200) {
-        reject(new Error(`Image download failed with status ${res.statusCode}`));
-        return;
-      }
-      const chunks = [];
-      res.on("data", (chunk) => chunks.push(chunk));
-      res.on("end", () => resolve({
-        buffer: Buffer.concat(chunks),
-        contentType: res.headers["content-type"] || "image/jpeg",
-      }));
-      res.on("error", reject);
-    });
-    request.on("error", reject);
-    request.setTimeout(15000, () => { request.destroy(); reject(new Error("Image download timed out")); });
-  });
-}
-
-async function uploadImageToStorage(imageUrl, articleId) {
+async function uploadImageToCloud(imageUrl, articleId) {
   if (!imageUrl || !imageUrl.includes("fbcdn")) return imageUrl;
+  if (!process.env.CLOUDINARY_CLOUD_NAME) return imageUrl;
+
   try {
-    console.log(`📸 Downloading image for article ${articleId}...`);
-    const { buffer, contentType } = await downloadImageBuffer(imageUrl);
-    const ext = contentType.includes("png") ? "png" : "jpg";
-    const bucket = admin.storage().bucket();
-    const file = bucket.file(`articles/${articleId}.${ext}`);
-    await file.save(buffer, { contentType });
-    await file.makePublic();
-    const storageUrl = `https://storage.googleapis.com/${bucket.name}/articles/${articleId}.${ext}`;
-    console.log(`✅ Image uploaded to Firebase Storage`);
-    return storageUrl;
+    console.log(`📸 Uploading image for article ${articleId} to Cloudinary...`);
+    // Cloudinary fetches the URL itself — no local download needed
+    const result = await cloudinary.uploader.upload(imageUrl, {
+      public_id: `jeromian-voice/articles/${articleId}`,
+      overwrite: false,
+      resource_type: "image",
+    });
+    console.log(`✅ Image stored permanently: ${result.secure_url}`);
+    return result.secure_url;
   } catch (err) {
     console.warn(`⚠️ Could not upload image: ${err.message}. Using original URL.`);
     return imageUrl;
@@ -440,9 +430,9 @@ async function saveArticleToFirestore(article) {
     return;
   }
 
-  // Migrate image from expiring Facebook CDN to permanent Firebase Storage
+  // Upload image from expiring Facebook CDN to permanent Cloudinary hosting
   if (data.image && data.image.includes("fbcdn")) {
-    data.image = await uploadImageToStorage(data.image, id);
+    data.image = await uploadImageToCloud(data.image, id);
   }
 
   await docRef.set({
