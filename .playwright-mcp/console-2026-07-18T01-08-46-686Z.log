@@ -1,0 +1,32 @@
+[    2229ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://www.facebook.com/people/Jeromian-Voice/61578775710364/:0
+[    2229ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://www.facebook.com/people/Jeromian-Voice/61578775710364/:0
+[    4387ms] [WARNING] Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently @ https://static.xx.fbcdn.net/rsrc.php/v4/yq/r/a5BXqhTg_NQ.js:57
+[    4630ms] [ERROR] ErrorUtils caught an error:
+
+terminate stream because StartStreamFailure with msg : UNAUTHENTICATED [Caught in: Subscription error in preprocessResponse]
+
+Subsequent non-fatal errors won't be logged; see https://fburl.com/debugjs. {column: 180, clientTime: 1784336931, extra: Object, guardList: Array(0), hash: rsarhz} @ https://static.xx.fbcdn.net/rsrc.php/v4/yQ/r/mQTuD_ddpeY.js:79
+[    4648ms] [LOG] 
+%cStop! font-family:helvetica; font-size:20px; font-size:50px; font-weight:bold; color:red; -webkit-text-stroke:1px black; @ https://static.xx.fbcdn.net/rsrc.php/v4/yQ/r/mQTuD_ddpeY.js:246
+[    4648ms] [LOG] 
+%cThis is a browser feature intended for developers. If someone told you to copy-paste something here to enable a Facebook feature or "hack" someone's account, it's a scam and will give them access to your Facebook account. font-family:helvetica; font-size:20px;  @ https://static.xx.fbcdn.net/rsrc.php/v4/yQ/r/mQTuD_ddpeY.js:246
+[    4648ms] [LOG] 
+%cSee https://www.facebook.com/selfxss for more information. font-family:helvetica; font-size:20px;  @ https://static.xx.fbcdn.net/rsrc.php/v4/yQ/r/mQTuD_ddpeY.js:246
+[    4648ms] [LOG] 
+%c  @ https://static.xx.fbcdn.net/rsrc.php/v4/yQ/r/mQTuD_ddpeY.js:246
+[  112503ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://www.facebook.com/people/Jeromian-Voice/61578775710364/:0
+[  112504ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://www.facebook.com/people/Jeromian-Voice/61578775710364/:0
+[  112618ms] [ERROR] ErrorUtils caught an error:
+
+terminate stream because StartStreamFailure with msg : UNAUTHENTICATED [Caught in: Subscription error in preprocessResponse]
+
+Subsequent non-fatal errors won't be logged; see https://fburl.com/debugjs. {column: 180, clientTime: 1784337039, extra: Object, guardList: Array(0), hash: rsarhz} @ https://static.xx.fbcdn.net/rsrc.php/v4/yQ/r/mQTuD_ddpeY.js:79
+[  113041ms] [WARNING] Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently @ https://static.xx.fbcdn.net/rsrc.php/v4/yq/r/a5BXqhTg_NQ.js:57
+[  113135ms] [LOG] 
+%cStop! font-family:helvetica; font-size:20px; font-size:50px; font-weight:bold; color:red; -webkit-text-stroke:1px black; @ https://static.xx.fbcdn.net/rsrc.php/v4/yQ/r/mQTuD_ddpeY.js:246
+[  113135ms] [LOG] 
+%cThis is a browser feature intended for developers. If someone told you to copy-paste something here to enable a Facebook feature or "hack" someone's account, it's a scam and will give them access to your Facebook account. font-family:helvetica; font-size:20px;  @ https://static.xx.fbcdn.net/rsrc.php/v4/yQ/r/mQTuD_ddpeY.js:246
+[  113135ms] [LOG] 
+%cSee https://www.facebook.com/selfxss for more information. font-family:helvetica; font-size:20px;  @ https://static.xx.fbcdn.net/rsrc.php/v4/yQ/r/mQTuD_ddpeY.js:246
+[  113135ms] [LOG] 
+%c  @ https://static.xx.fbcdn.net/rsrc.php/v4/yQ/r/mQTuD_ddpeY.js:246
