@@ -35,6 +35,11 @@ export async function POST(request: Request) {
       );
     }
 
+    // Optional { limit } — a regular "sync with page" click omits it (grabs
+    // only the latest posts); the admin backfill button sends limit: 15.
+    const body = await request.json().catch(() => ({}));
+    const limit = typeof body?.limit === 'number' && body.limit > 0 ? body.limit : 3;
+
     // Trigger the GitHub Action via repository_dispatch
     const response = await fetch(
       `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/dispatches`,
@@ -47,6 +52,7 @@ export async function POST(request: Request) {
         },
         body: JSON.stringify({
           event_type: 'sync-news',
+          client_payload: { limit },
         }),
       }
     );

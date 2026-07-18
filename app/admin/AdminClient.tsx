@@ -5,7 +5,7 @@ import {
   Search, RefreshCw, ExternalLink, Calendar,
   CheckCircle2, AlertCircle, Loader2, LogOut,
   LayoutDashboard, Newspaper, Activity, Settings,
-  ArrowUpRight, Clock, Database, Menu, X, Trash2, ShieldAlert, Wifi
+  ArrowUpRight, Clock, Database, Menu, X, Trash2, ShieldAlert, Wifi, History
 } from 'lucide-react';
 import { Article } from '@/lib/articles';
 import { useAuth } from '@/hooks/useAuth';
@@ -21,6 +21,7 @@ export default function AdminClient({ initialArticles }: AdminClientProps) {
   const [articles, setArticles] = useState<Article[]>(initialArticles);
   const [searchQuery, setSearchQuery] = useState('');
   const [syncing, setSyncing] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
   const [syncStatus, setSyncStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [testing, setTesting] = useState(false);
   const [testResults, setTestResults] = useState<{ ok: boolean; results: Record<string, { ok: boolean; detail: string }> } | null>(null);
@@ -107,33 +108,43 @@ export default function AdminClient({ initialArticles }: AdminClientProps) {
     }
   };
 
-  const handleSync = async () => {
-    setSyncing(true);
+  const runSync = async (limit?: number) => {
+    const setLoading = limit ? setBackfilling : setSyncing;
+    setLoading(true);
     setSyncStatus(null);
-    
+
     try {
       const token = await user?.getIdToken();
       const response = await fetch('/api/news/sync', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
-        }
+        },
+        body: JSON.stringify(limit ? { limit } : {}),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        setSyncStatus({ type: 'success', message: 'Sync pipeline dispatched. The GitHub Action runs in the background — new articles appear in 3–5 minutes. Refresh this page after a moment.' });
+        setSyncStatus({
+          type: 'success',
+          message: limit
+            ? `Backfill of up to ${limit} articles dispatched. This can take several minutes — refresh the page after a while.`
+            : 'Sync pipeline dispatched. The GitHub Action runs in the background — new articles appear in 3–5 minutes. Refresh this page after a moment.',
+        });
       } else {
         setSyncStatus({ type: 'error', message: data.error || 'Failed to trigger sync' });
       }
     } catch (error) {
       setSyncStatus({ type: 'error', message: 'An unexpected error occurred' });
     } finally {
-      setSyncing(false);
+      setLoading(false);
     }
   };
+
+  const handleSync = () => runSync();
+  const handleBackfill = () => runSync(15);
 
   return (
     <div className="min-h-screen bg-background text-on-surface font-sans selection:bg-gold/20">
@@ -234,8 +245,21 @@ export default function AdminClient({ initialArticles }: AdminClientProps) {
                   <span>{testing ? 'Testing...' : 'Test Connection'}</span>
                 </button>
                 <button
+                  onClick={handleBackfill}
+                  disabled={backfilling || syncing}
+                  title="One-time import of the 15 most recent posts — use to prefill an empty archive"
+                  className="btn-outline group px-4 py-2 text-xs"
+                >
+                  {backfilling ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" />
+                  ) : (
+                    <History className="w-3.5 h-3.5 mr-2" />
+                  )}
+                  <span>{backfilling ? 'Backfilling...' : 'Backfill 15 Articles'}</span>
+                </button>
+                <button
                   onClick={handleSync}
-                  disabled={syncing}
+                  disabled={syncing || backfilling}
                   className="btn-minimal group px-5 py-2.5 text-sm"
                 >
                   {syncing ? (

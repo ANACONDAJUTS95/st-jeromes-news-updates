@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '0 0 */3 * *' # Every 3 days at midnight
   workflow_dispatch: # Allow manual trigger from GitHub UI
+    inputs:
+      limit:
+        description: "Number of posts to scrape/process (e.g. 15 for a one-time backfill)"
+        required: false
+        default: "3"
   repository_dispatch:
     types: [sync-news] # Allow API trigger from Next.js
 
@@ -36,6 +41,7 @@ jobs:
 
       - name: Run news sync
         env:
+          SYNC_LIMIT: ${{ github.event.client_payload.limit || github.event.inputs.limit || 3 }}
           FB_URL: ${{ secrets.FB_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}

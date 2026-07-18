@@ -19,6 +19,10 @@ const crypto = require("crypto");
 const FB_URL = process.env.FB_URL || "https://m.facebook.com/profile.php?id=61578775710364";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const FIREBASE_SERVICE_ACCOUNT = process.env.FIREBASE_SERVICE_ACCOUNT;
+// How many posts to scrape/process this run. Regular "sync with page" runs
+// stay small (latest posts only); a one-time backfill can request more by
+// setting SYNC_LIMIT (wired through from the admin dashboard's dispatch).
+const SYNC_LIMIT = parseInt(process.env.SYNC_LIMIT, 10) || 3;
 
 // Cloudinary (free image hosting — replaces Firebase Storage)
 if (process.env.CLOUDINARY_CLOUD_NAME) {
@@ -110,8 +114,8 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`📡 Launching browser to scrape: ${FB_URL}`);
-  const items = await scrapeFacebook(FB_URL);
+  console.log(`📡 Launching browser to scrape: ${FB_URL} (limit ${SYNC_LIMIT})`);
+  const items = await scrapeFacebook(FB_URL, SYNC_LIMIT);
   console.log(`📰 Found ${items.length} posts on page.`);
 
   const newItems = [];
@@ -128,10 +132,9 @@ async function main() {
     return;
   }
 
-  const MAX_POSTS_PER_RUN = 3;
-  if (newItems.length > MAX_POSTS_PER_RUN) {
-    console.log(`⚠️ Limiting to ${MAX_POSTS_PER_RUN} posts this run to respect API limits.`);
-    newItems.splice(MAX_POSTS_PER_RUN);
+  if (newItems.length > SYNC_LIMIT) {
+    console.log(`⚠️ Limiting to ${SYNC_LIMIT} posts this run to respect API limits.`);
+    newItems.splice(SYNC_LIMIT);
   }
 
   const delay = (ms) => new Promise(res => setTimeout(res, ms));
@@ -161,7 +164,7 @@ async function main() {
   console.log(`\n🎉 Sync complete. ${saved} article(s) saved.`);
 }
 
-async function scrapeFacebook(url) {
+async function scrapeFacebook(url, limit = 3) {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -189,14 +192,19 @@ async function scrapeFacebook(url) {
 
     // Scroll to trigger lazy-loading of older posts — without this, only
     // the single newest post renders before the feed stops loading more.
-    console.log("Scrolling to load more posts...");
-    for (let i = 0; i < 6; i++) {
+    // Scroll until enough real (non-skeleton) posts are visible, capped at
+    // a safety ceiling so a stalled feed can't loop forever.
+    console.log(`Scrolling to load at least ${limit} post(s)...`);
+    const maxScrolls = Math.min(Math.max(limit * 3, 6), 40);
+    for (let i = 0; i < maxScrolls; i++) {
       await page.evaluate(() => window.scrollBy(0, 1500));
       await page.waitForTimeout(3000);
       const seen = await page.evaluate(() =>
-        document.querySelectorAll('div[role="article"]').length
+        Array.from(document.querySelectorAll('div[role="article"]'))
+          .filter((el) => el.innerText && el.innerText.trim().length > 10).length
       );
-      console.log(`  ...scroll ${i + 1}/6, ${seen} article nodes visible so far`);
+      console.log(`  ...scroll ${i + 1}/${maxScrolls}, ${seen} real post(s) visible so far`);
+      if (seen >= limit) break;
     }
 
     // Take a debug screenshot
@@ -204,7 +212,7 @@ async function scrapeFacebook(url) {
     console.log(`📸 Debug screenshot saved to data/debug.png`);
 
     // Extract posts
-    const posts = await page.evaluate(async () => {
+    const posts = await page.evaluate(async (limit) => {
       // 1. Find and click all "Tumingin pa" or "See more" buttons
       const seeMoreButtons = Array.from(document.querySelectorAll('div[role="button"], span, a'))
         .filter(el => {
@@ -222,8 +230,8 @@ async function scrapeFacebook(url) {
 
       // 2. Now extract the full content
       const articles = Array.from(document.querySelectorAll('div[role="article"]'));
-      
-      return articles.slice(0, 5).map(el => {
+
+      return articles.slice(0, limit).map(el => {
         // Find the message text (Facebook uses specific data attributes for this)
         const messageEl = el.querySelector('div[data-ad-preview="message"]');
         const text = messageEl ? messageEl.innerText : el.innerText;
@@ -252,7 +260,7 @@ async function scrapeFacebook(url) {
           link: timeLink ? (timeLink.href.startsWith('http') ? timeLink.href : window.location.origin + timeLink.href) : window.location.href
         };
       }).filter(p => p.content && p.content.length > 10);
-    });
+    }, limit);
 
     // Download each post's image while the authenticated browser session is
     // still alive. A blind server-to-server fetch (e.g. Cloudinary fetching
