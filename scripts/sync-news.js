@@ -173,10 +173,24 @@ async function scrapeFacebook(url) {
     // Wait for the page to settle
     await page.waitForTimeout(5000); 
 
-    // Dismiss any login popups
+    // Dismiss the login dialog. Facebook's modern layout renders it as an
+    // overlay with an explicit close button — Escape alone doesn't dismiss
+    // it, and while it's open Facebook stops lazy-loading further posts.
     console.log("Attempting to dismiss popups...");
     await page.keyboard.press('Escape');
+    await page.evaluate(() => {
+      const closeBtn = document.querySelector('div[aria-label="Close"], [aria-label="Close"]');
+      if (closeBtn) closeBtn.click();
+    });
     await page.waitForTimeout(2000);
+
+    // Scroll to trigger lazy-loading of older posts — without this, only
+    // the single newest post renders before the feed stops loading more.
+    console.log("Scrolling to load more posts...");
+    for (let i = 0; i < 4; i++) {
+      await page.evaluate(() => window.scrollBy(0, 1500));
+      await page.waitForTimeout(2500);
+    }
 
     // Take a debug screenshot
     await page.screenshot({ path: path.join(DATA_DIR, "debug.png") });
