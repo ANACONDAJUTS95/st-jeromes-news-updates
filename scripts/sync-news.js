@@ -23,6 +23,8 @@ const FIREBASE_SERVICE_ACCOUNT = process.env.FIREBASE_SERVICE_ACCOUNT;
 // stay small (latest posts only); a one-time backfill can request more by
 // setting SYNC_LIMIT (wired through from the admin dashboard's dispatch).
 const SYNC_LIMIT = parseInt(process.env.SYNC_LIMIT, 10) || 3;
+const SITE_URL = process.env.SITE_URL || "https://jeromian-voice.vercel.app";
+const REVALIDATE_SECRET = process.env.REVALIDATE_SECRET;
 
 // Cloudinary (free image hosting — replaces Firebase Storage)
 if (process.env.CLOUDINARY_CLOUD_NAME) {
@@ -162,6 +164,34 @@ async function main() {
   }
 
   console.log(`\n🎉 Sync complete. ${saved} article(s) saved.`);
+
+  if (saved > 0) {
+    await revalidateSite();
+  }
+}
+
+/**
+ * Tells the deployed site to drop its cached pages after a successful sync.
+ * Without this, Next.js keeps serving the static snapshot it built with
+ * (which may predate any articles) until the next full redeploy — new
+ * articles would exist in Firestore but never actually appear on the site.
+ */
+async function revalidateSite() {
+  if (!REVALIDATE_SECRET) {
+    console.warn("⚠️ REVALIDATE_SECRET not set — skipping cache revalidation. New articles may not appear on the live site until the next deploy.");
+    return;
+  }
+  const url = `${SITE_URL}/api/revalidate?secret=${encodeURIComponent(REVALIDATE_SECRET)}&path=${encodeURIComponent("/")}&type=layout`;
+  try {
+    const res = await fetch(url);
+    if (res.ok) {
+      console.log("🔄 Site cache revalidated — new articles should now be live.");
+    } else {
+      console.warn(`⚠️ Revalidation request failed: HTTP ${res.status}`);
+    }
+  } catch (err) {
+    console.warn(`⚠️ Revalidation request errored: ${err.message}`);
+  }
 }
 
 async function scrapeFacebook(url, limit = 3) {
