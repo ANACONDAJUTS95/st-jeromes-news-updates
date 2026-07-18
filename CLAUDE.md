@@ -74,6 +74,9 @@ GEMINI_API_KEY
 WEBHOOK_API_KEY
 WEBHOOK_URL
 REVALIDATE_SECRET
+CLOUDINARY_CLOUD_NAME       # Required for permanent article image hosting — see below
+CLOUDINARY_API_KEY
+CLOUDINARY_API_SECRET
 ```
 
 **GitHub Actions secrets** (for the sync pipeline):
@@ -84,9 +87,20 @@ WEBHOOK_URL
 WEBHOOK_API_KEY
 FIREBASE_SERVICE_ACCOUNT
 NEXT_PUBLIC_FIREBASE_PROJECT_ID
+CLOUDINARY_CLOUD_NAME
+CLOUDINARY_API_KEY
+CLOUDINARY_API_SECRET
 ```
 
 A `GITHUB_PAT` (Personal Access Token) is also needed in server env for `/api/news/sync` to dispatch the `sync-news` repository_dispatch event.
+
+### Article Images (Facebook → Cloudinary)
+
+`scripts/sync-news.js` downloads each post's image **through the same authenticated Playwright browser context** that scraped it (`downloadImageViaContext`), then uploads those bytes to Cloudinary as a base64 data URI. This matters: letting Cloudinary fetch the raw `fbcdn` URL itself (a blind server-to-server request) gets rejected by Facebook's hotlink protection, since it carries none of the session's cookies/referrer. If the buffer upload fails, it falls back to a remote-fetch upload, and only as a last resort keeps the raw (expiring) `fbcdn` URL — the image is never silently dropped as long as one was found on the post.
+
+If `CLOUDINARY_CLOUD_NAME` is missing, images are stored as raw `fbcdn` URLs and *will* break once Facebook's signed URL expires.
+
+If existing articles are showing blank/no image (missing or still an `fbcdn` URL), run `node scripts/repair-images.js` — it re-visits each article's `originalUrl` permalink, re-downloads that post's original photo, and re-uploads it to Cloudinary. Avoid running `scripts/clear-expired-images.js`, which wipes the `image` field instead of fixing it.
 
 ## Design System
 

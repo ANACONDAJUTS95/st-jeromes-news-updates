@@ -233,6 +233,16 @@ async function scrapeFacebook(url) {
       }).filter(p => p.content && p.content.length > 10);
     });
 
+    // Download each post's image while the authenticated browser session is
+    // still alive. A blind server-to-server fetch (e.g. Cloudinary fetching
+    // the fbcdn URL itself) gets rejected by Facebook's hotlink protection —
+    // fetching through this context's cookies/referrer succeeds instead.
+    for (const post of posts) {
+      if (post.image) {
+        post.imageBuffer = await downloadImageViaContext(context, post.image, url);
+      }
+    }
+
     await browser.close();
     return posts;
   } catch (err) {
@@ -241,6 +251,30 @@ async function scrapeFacebook(url) {
     try { await page.screenshot({ path: path.join(DATA_DIR, "error.png") }); } catch(e) {}
     await browser.close();
     return [];
+  }
+}
+
+/**
+ * Downloads an image using the browser context's own request API, so the
+ * fetch carries the same cookies/user-agent/referrer as the page that
+ * rendered it. Returns { base64, contentType } or null on failure.
+ */
+async function downloadImageViaContext(context, imageUrl, refererUrl) {
+  try {
+    const response = await context.request.get(imageUrl, {
+      headers: { referer: refererUrl },
+      timeout: 20000,
+    });
+    if (!response.ok()) {
+      console.warn(`⚠️ Image download got HTTP ${response.status()} for ${imageUrl.slice(0, 80)}...`);
+      return null;
+    }
+    const buffer = await response.body();
+    const contentType = response.headers()["content-type"] || "image/jpeg";
+    return { base64: buffer.toString("base64"), contentType };
+  } catch (err) {
+    console.warn(`⚠️ Image download failed: ${err.message}`);
+    return null;
   }
 }
 
@@ -375,6 +409,7 @@ Output ONLY valid JSON:
     timestamp: parsed.timestamp || new Date().toISOString(),
     category: parsed.category || "General",
     image: item.image || "",
+    _imageBuffer: item.imageBuffer || null,
   };
 }
 
@@ -392,32 +427,60 @@ function basicTransform(item) {
     timestamp: new Date().toISOString(),
     category: "General",
     image: item.image || "",
+    _imageBuffer: item.imageBuffer || null,
   };
 }
 
-async function uploadImageToCloud(imageUrl, articleId) {
+/**
+ * Uploads the Facebook post image to Cloudinary with a fallback chain so the
+ * article always ends up with *some* usable image URL — never silently
+ * dropped:
+ *   1. Upload from the buffer downloaded through the authenticated browser
+ *      context (most reliable — Facebook's CDN blocks blind server fetches).
+ *   2. Fall back to letting Cloudinary fetch the fbcdn URL itself.
+ *   3. Fall back to the raw fbcdn URL (works until it expires, but keeps
+ *      the same photo from the post rather than showing nothing).
+ */
+async function uploadImageToCloud(imageUrl, articleId, imageBuffer) {
   if (!imageUrl || !imageUrl.includes("fbcdn")) return imageUrl;
-  if (!process.env.CLOUDINARY_CLOUD_NAME) return imageUrl;
+
+  if (!process.env.CLOUDINARY_CLOUD_NAME) {
+    console.warn(`⚠️ CLOUDINARY_CLOUD_NAME not set — storing raw fbcdn URL for article ${articleId} (will expire).`);
+    return imageUrl;
+  }
+
+  const uploadOptions = {
+    public_id: `jeromian-voice/articles/${articleId}`,
+    overwrite: false,
+    resource_type: "image",
+  };
+
+  if (imageBuffer && imageBuffer.base64) {
+    try {
+      console.log(`📸 Uploading downloaded image bytes for article ${articleId} to Cloudinary...`);
+      const dataUri = `data:${imageBuffer.contentType};base64,${imageBuffer.base64}`;
+      const result = await cloudinary.uploader.upload(dataUri, uploadOptions);
+      console.log(`✅ Image stored permanently: ${result.secure_url}`);
+      return result.secure_url;
+    } catch (err) {
+      console.warn(`⚠️ Buffer upload failed: ${err.message}. Trying remote fetch...`);
+    }
+  }
 
   try {
-    console.log(`📸 Uploading image for article ${articleId} to Cloudinary...`);
-    // Cloudinary fetches the URL itself — no local download needed
-    const result = await cloudinary.uploader.upload(imageUrl, {
-      public_id: `jeromian-voice/articles/${articleId}`,
-      overwrite: false,
-      resource_type: "image",
-    });
+    console.log(`📸 Asking Cloudinary to fetch the image URL directly for article ${articleId}...`);
+    const result = await cloudinary.uploader.upload(imageUrl, uploadOptions);
     console.log(`✅ Image stored permanently: ${result.secure_url}`);
     return result.secure_url;
   } catch (err) {
-    console.warn(`⚠️ Could not upload image: ${err.message}. Using original URL.`);
+    console.warn(`⚠️ Remote fetch upload failed: ${err.message}. Falling back to the raw fbcdn URL.`);
     return imageUrl;
   }
 }
 
 async function saveArticleToFirestore(article) {
   const db = admin.firestore();
-  const { id, ...data } = article;
+  const { id, _imageBuffer, ...data } = article;
 
   const docRef = db.collection("articles").doc(id);
 
@@ -432,7 +495,7 @@ async function saveArticleToFirestore(article) {
 
   // Upload image from expiring Facebook CDN to permanent Cloudinary hosting
   if (data.image && data.image.includes("fbcdn")) {
-    data.image = await uploadImageToCloud(data.image, id);
+    data.image = await uploadImageToCloud(data.image, id, _imageBuffer);
   }
 
   await docRef.set({
