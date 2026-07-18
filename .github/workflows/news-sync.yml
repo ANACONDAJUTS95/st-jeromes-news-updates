@@ -46,3 +46,14 @@ jobs:
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
         run: node scripts/sync-news.js
+
+      - name: Upload debug screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-debug-screenshots
+          path: |
+            data/debug.png
+            data/error.png
+          if-no-files-found: ignore
+          retention-days: 7

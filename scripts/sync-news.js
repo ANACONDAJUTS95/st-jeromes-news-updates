@@ -68,11 +68,14 @@ const NEWS_DIR = path.join(__dirname, "..", "content", "news");
 const PROCESSED_IDS_PATH = path.join(DATA_DIR, "processed_ids.json");
 
 /**
- * Stable ID: keyed on the post URL so the same Facebook post always maps
- * to the same Firestore document ID across every run.
+ * Stable ID: keyed on the post's text content, not its permalink. Facebook's
+ * modern "pfbid" permalink tokens are wrapped per viewing session — the same
+ * post gets a different URL on every anonymous scrape — so hashing the link
+ * caused the same post to be re-saved as a new "duplicate" article each run.
+ * The post's own text is what's actually stable across scrapes.
  */
 function stableId(item) {
-  return hashId(item.link || item.content.slice(0, 300));
+  return hashId(item.content.slice(0, 300) || item.link);
 }
 
 /**
@@ -187,9 +190,13 @@ async function scrapeFacebook(url) {
     // Scroll to trigger lazy-loading of older posts — without this, only
     // the single newest post renders before the feed stops loading more.
     console.log("Scrolling to load more posts...");
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 6; i++) {
       await page.evaluate(() => window.scrollBy(0, 1500));
-      await page.waitForTimeout(2500);
+      await page.waitForTimeout(3000);
+      const seen = await page.evaluate(() =>
+        document.querySelectorAll('div[role="article"]').length
+      );
+      console.log(`  ...scroll ${i + 1}/6, ${seen} article nodes visible so far`);
     }
 
     // Take a debug screenshot
