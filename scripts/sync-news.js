@@ -456,9 +456,12 @@ ${cleanContent}
 
 EDITORIAL RULES:
 1. TITLE: The very first line of the post is the headline. Clean it of any "News |" prefixes and fancy fonts.
-2. BODY: Everything after the first line is the article content. 
-   - DO NOT include the Title/Headline in this field.
-   - Preserve professional tone and use <p> tags for paragraphs. 
+2. BODY: Reproduce the post's own wording VERBATIM — every sentence exactly
+   as written, in the same order. Do NOT summarize, paraphrase, shorten, or
+   rewrite it in different words. Your only edits are: wrap each paragraph
+   in <p> tags, drop the credit-emoji lines (📸/🎨/✍🏻) from the body since
+   they're captured separately below, and drop the Title/Headline line.
+   Do not add, remove, or alter any information from the original text.
 3. CREDITS: Look for these emojis at the end:
    - 📸: Photo Credits
    - 🎨: Layout/Graphics Credits
@@ -521,7 +524,7 @@ Output ONLY valid JSON:
     let creditHtml = '<div class="mt-8 pt-6 border-t border-outline/30 text-sm text-on-surface-muted space-y-1">';
     if (parsed.credits.writer) creditHtml += `<p><i>Story Written By: ${parsed.credits.writer}</i></p>`;
     if (parsed.credits.photo) creditHtml += `<p><i>Photo Captured By: ${parsed.credits.photo}</i></p>`;
-    if (parsed.credits.layout) creditHtml += `<p><i>Photo Layout Done By: ${parsed.credits.layout}</i></p>`;
+    if (parsed.credits.layout) creditHtml += `<p><i>Material Layout by: ${parsed.credits.layout}</i></p>`;
     creditHtml += '</div>';
     finalContent += creditHtml;
   }

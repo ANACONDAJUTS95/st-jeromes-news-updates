@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Standalone Node/CommonJS scripts run directly via `node`, not part
+    // of the Next.js app bundle — require() here is correct, not a mistake.
+    "scripts/**",
   ]),
 ]);
 
