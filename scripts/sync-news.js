@@ -366,6 +366,74 @@ function stripNewsPrefix(title) {
   return title.replace(/^(News|Update|Facebook|Jeromian|Post|Article)\s*[|:–—\-]\s*/i, "").trim();
 }
 
+const MONTHS = {
+  january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
+  july: 6, august: 7, september: 8, october: 9, november: 10, december: 11,
+};
+
+function applyTimeOfDay(date, hourStr, minStr, ampm) {
+  let hour = parseInt(hourStr, 10) % 12;
+  if (/pm/i.test(ampm)) hour += 12;
+  date.setHours(hour, parseInt(minStr, 10), 0, 0);
+  return date;
+}
+
+/**
+ * Parses Facebook's own displayed post date/time (the aria-label scraped as
+ * item.timestamp, e.g. "2d", "July 8 at 1:22 PM", "January 29") into a real
+ * Date — deterministically and for free, instead of asking Gemini to guess
+ * an ISO timestamp with no grounding (which is what produced wrong dates).
+ */
+function parseFacebookTimestamp(raw, now = new Date()) {
+  if (!raw) return null;
+  const str = raw.trim();
+
+  // Relative short form: "45m", "1h", "2d", "3w"
+  let m = str.match(/^(\d+)\s*(s|m|h|d|w)$/i);
+  if (m) {
+    const n = parseInt(m[1], 10);
+    const msPerUnit = { s: 1000, m: 60000, h: 3600000, d: 86400000, w: 604800000 };
+    return new Date(now.getTime() - n * msPerUnit[m[2].toLowerCase()]);
+  }
+
+  // "Yesterday at H:MM AM/PM" / "Today at H:MM AM/PM"
+  m = str.match(/^(Yesterday|Today) at (\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (m) {
+    const d = new Date(now);
+    if (m[1].toLowerCase() === "yesterday") d.setDate(d.getDate() - 1);
+    return applyTimeOfDay(d, m[2], m[3], m[4]);
+  }
+
+  // "Month D at H:MM AM/PM" — year omitted, assume current year (roll back
+  // one year if that would place it in the future relative to the scrape).
+  m = str.match(/^([A-Za-z]+)\s+(\d{1,2})\s+at\s+(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (m && MONTHS[m[1].toLowerCase()] !== undefined) {
+    const year = now.getFullYear();
+    const d = applyTimeOfDay(new Date(year, MONTHS[m[1].toLowerCase()], parseInt(m[2], 10)), m[3], m[4], m[5]);
+    if (d.getTime() > now.getTime() + 86400000) d.setFullYear(year - 1);
+    return d;
+  }
+
+  // "Month D, YYYY" — explicit year, no time
+  m = str.match(/^([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})$/);
+  if (m && MONTHS[m[1].toLowerCase()] !== undefined) {
+    return new Date(parseInt(m[3], 10), MONTHS[m[1].toLowerCase()], parseInt(m[2], 10));
+  }
+
+  // "Month D" — no year, no time (same current-year-or-rollback rule)
+  m = str.match(/^([A-Za-z]+)\s+(\d{1,2})$/);
+  if (m && MONTHS[m[1].toLowerCase()] !== undefined) {
+    const year = now.getFullYear();
+    let d = new Date(year, MONTHS[m[1].toLowerCase()], parseInt(m[2], 10));
+    if (d.getTime() > now.getTime() + 86400000) d = new Date(year - 1, MONTHS[m[1].toLowerCase()], parseInt(m[2], 10));
+    return d;
+  }
+
+  // Fallback to native Date parsing for anything already unambiguous
+  const native = new Date(str);
+  return isNaN(native.getTime()) ? null : native;
+}
+
 async function transformWithAI(item) {
   const cleanContent = cleanUnicode(item.content);
 
@@ -465,7 +533,12 @@ Output ONLY valid JSON:
     content: finalContent,
     excerpt: parsed.excerpt || cleanContent.split('\n').slice(1, 3).join(' ').slice(0, 160),
     originalUrl: item.link || "",
-    timestamp: parsed.timestamp || new Date().toISOString(),
+    // Facebook's own displayed post date is authoritative — Gemini's guess
+    // is only a last resort if that string couldn't be parsed at all.
+    timestamp: (
+      parseFacebookTimestamp(item.timestamp) ||
+      (parsed.timestamp && !isNaN(Date.parse(parsed.timestamp)) ? new Date(parsed.timestamp) : new Date())
+    ).toISOString(),
     category: parsed.category || "General",
     image: item.image || "",
     _imageBuffer: item.imageBuffer || null,
@@ -483,7 +556,7 @@ function basicTransform(item) {
     content: `<p>${item.content.replace(/\n+/g, "</p><p>")}</p>`,
     excerpt: item.content.slice(0, 160),
     originalUrl: item.link || "",
-    timestamp: new Date().toISOString(),
+    timestamp: (parseFacebookTimestamp(item.timestamp) || new Date()).toISOString(),
     category: "General",
     image: item.image || "",
     _imageBuffer: item.imageBuffer || null,

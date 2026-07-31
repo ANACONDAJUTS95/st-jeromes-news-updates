@@ -5,7 +5,7 @@ import {
   Search, RefreshCw, ExternalLink, Calendar,
   CheckCircle2, AlertCircle, Loader2, LogOut,
   LayoutDashboard, Newspaper, Activity, Settings,
-  ArrowUpRight, Clock, Database, Menu, X, Trash2, ShieldAlert, Wifi, History
+  ArrowUpRight, Clock, Database, Menu, X, Trash2, ShieldAlert, Wifi, History, Pencil, Save
 } from 'lucide-react';
 import { Article } from '@/lib/articles';
 import { useAuth } from '@/hooks/useAuth';
@@ -32,6 +32,14 @@ export default function AdminClient({ initialArticles }: AdminClientProps) {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [articleToDelete, setArticleToDelete] = useState<Article | null>(null);
   const [confirmInput, setConfirmInput] = useState('');
+
+  // Edit Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingArticle, setEditingArticle] = useState<Article | null>(null);
+  const [editForm, setEditForm] = useState({
+    title: '', category: '', excerpt: '', content: '', image: '', date: '',
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) {
@@ -88,6 +96,58 @@ export default function AdminClient({ initialArticles }: AdminClientProps) {
     setArticleToDelete(article);
     setConfirmInput('');
     setIsDeleteModalOpen(true);
+  };
+
+  const openEditModal = (article: Article) => {
+    setEditingArticle(article);
+    setEditForm({
+      title: article.title,
+      category: article.category || '',
+      excerpt: article.excerpt,
+      content: article.content,
+      image: article.image || '',
+      date: new Date(article.timestamp).toISOString().slice(0, 10),
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingArticle) return;
+    setSavingEdit(true);
+
+    try {
+      const token = await user?.getIdToken();
+      const response = await fetch(`/api/news/${editingArticle.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: editForm.title,
+          category: editForm.category,
+          excerpt: editForm.excerpt,
+          content: editForm.content,
+          image: editForm.image,
+          timestamp: new Date(editForm.date).toISOString(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setArticles(prev => prev.map(a => a.id === editingArticle.id ? { ...a, ...data.updates } : a));
+        setSyncStatus({ type: 'success', message: `"${editForm.title}" updated successfully.` });
+        setIsEditModalOpen(false);
+        setEditingArticle(null);
+      } else {
+        setSyncStatus({ type: 'error', message: data.error || 'Failed to update article' });
+      }
+    } catch (err) {
+      setSyncStatus({ type: 'error', message: 'Communication error while saving changes.' });
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const handleTestConnection = async () => {
@@ -428,6 +488,13 @@ export default function AdminClient({ initialArticles }: AdminClientProps) {
                                 <ArrowUpRight className="w-3.5 h-3.5 opacity-50 group-hover/btn:opacity-100 transition-opacity" />
                               </a>
                               <button
+                                onClick={() => openEditModal(article)}
+                                className="p-2 text-on-surface-muted hover:text-primary hover:bg-primary/5 rounded-sm transition-all"
+                                title="Edit Article"
+                              >
+                                <Pencil className="w-4 h-4 text-primary/40 group-hover:text-primary" />
+                              </button>
+                              <button
                                 onClick={() => openDeleteModal(article)}
                                 disabled={deletingId === article.id}
                                 className="p-2 text-on-surface-muted hover:text-secondary hover:bg-secondary/5 rounded-sm transition-all disabled:opacity-50"
@@ -522,6 +589,111 @@ export default function AdminClient({ initialArticles }: AdminClientProps) {
                 <button
                   onClick={() => setIsDeleteModalOpen(false)}
                   className="flex-1 py-4 font-bold tracking-widest uppercase text-sm border-2 border-outline text-on-surface hover:bg-surface-muted transition-all rounded-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Article Modal */}
+      {isEditModalOpen && editingArticle && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-md animate-in fade-in duration-300"
+            onClick={() => !savingEdit && setIsEditModalOpen(false)}
+          />
+          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-surface border-2 border-primary shadow-2xl rounded-sm p-8 md:p-10 animate-in zoom-in-95 duration-200">
+            <div className="space-y-6">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-primary/10 rounded-sm flex items-center justify-center shrink-0">
+                  <Pencil className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-serif font-bold text-primary m-0">Edit Article</h3>
+                  <p className="text-on-surface-muted text-sm mt-1 italic">Correct details captured during sync — title, date, category, image, or body text.</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-muted">Title</label>
+                  <input
+                    type="text"
+                    value={editForm.title}
+                    onChange={(e) => setEditForm(f => ({ ...f, title: e.target.value }))}
+                    className="w-full mt-1 bg-surface-container border border-outline focus:border-primary p-3 font-serif text-base outline-none transition-all"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-muted">Category</label>
+                    <input
+                      type="text"
+                      value={editForm.category}
+                      onChange={(e) => setEditForm(f => ({ ...f, category: e.target.value }))}
+                      className="w-full mt-1 bg-surface-container border border-outline focus:border-primary p-3 font-serif text-base outline-none transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-muted">Published Date</label>
+                    <input
+                      type="date"
+                      value={editForm.date}
+                      onChange={(e) => setEditForm(f => ({ ...f, date: e.target.value }))}
+                      className="w-full mt-1 bg-surface-container border border-outline focus:border-primary p-3 font-serif text-base outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-muted">Image URL</label>
+                  <input
+                    type="text"
+                    value={editForm.image}
+                    onChange={(e) => setEditForm(f => ({ ...f, image: e.target.value }))}
+                    placeholder="https://res.cloudinary.com/..."
+                    className="w-full mt-1 bg-surface-container border border-outline focus:border-primary p-3 font-sans text-sm outline-none transition-all placeholder:opacity-30"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-muted">Excerpt</label>
+                  <textarea
+                    value={editForm.excerpt}
+                    onChange={(e) => setEditForm(f => ({ ...f, excerpt: e.target.value }))}
+                    rows={2}
+                    className="w-full mt-1 bg-surface-container border border-outline focus:border-primary p-3 font-serif text-sm outline-none transition-all resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-muted">Body Content (HTML)</label>
+                  <textarea
+                    value={editForm.content}
+                    onChange={(e) => setEditForm(f => ({ ...f, content: e.target.value }))}
+                    rows={8}
+                    className="w-full mt-1 bg-surface-container border border-outline focus:border-primary p-3 font-mono text-xs outline-none transition-all resize-y"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col md:flex-row gap-3 pt-2">
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={savingEdit || !editForm.title.trim()}
+                  className="flex-1 py-4 font-bold tracking-widest uppercase text-sm transition-all rounded-sm border-2 bg-primary border-primary text-surface hover:bg-secondary hover:border-secondary shadow-lg active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {savingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {savingEdit ? 'Saving...' : 'Save Changes'}
+                </button>
+                <button
+                  onClick={() => setIsEditModalOpen(false)}
+                  disabled={savingEdit}
+                  className="flex-1 py-4 font-bold tracking-widest uppercase text-sm border-2 border-outline text-on-surface hover:bg-surface-muted transition-all rounded-sm disabled:opacity-40"
                 >
                   Cancel
                 </button>
