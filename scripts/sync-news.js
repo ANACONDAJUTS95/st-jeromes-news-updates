@@ -229,10 +229,13 @@ async function scrapeFacebook(url, limit = 3) {
     for (let i = 0; i < maxScrolls; i++) {
       await page.evaluate(() => window.scrollBy(0, 1500));
       await page.waitForTimeout(3000);
-      const seen = await page.evaluate(() =>
-        Array.from(document.querySelectorAll('div[role="article"]'))
-          .filter((el) => el.innerText && el.innerText.trim().length > 10).length
-      );
+      const seen = await page.evaluate(() => {
+        const all = Array.from(document.querySelectorAll('div[role="article"]'));
+        // Same nesting exclusion as the final extraction — otherwise a
+        // post's nested comments inflate this count and cut scrolling short.
+        const topLevel = all.filter(el => !all.some(other => other !== el && other.contains(el)));
+        return topLevel.filter((el) => el.innerText && el.innerText.trim().length > 10).length;
+      });
       console.log(`  ...scroll ${i + 1}/${maxScrolls}, ${seen} real post(s) visible so far`);
       if (seen >= limit) break;
     }
@@ -258,14 +261,29 @@ async function scrapeFacebook(url, limit = 3) {
         } catch (e) {}
       }
 
+      // The page's own display name — genuine posts are always authored by
+      // the Page itself, never by an individual commenter.
+      const pageName = (document.querySelector('h1')?.innerText || '').trim();
+
       // 2. Now extract the full content
-      const articles = Array.from(document.querySelectorAll('div[role="article"]'));
+      const allArticles = Array.from(document.querySelectorAll('div[role="article"]'));
+      // Facebook nests each comment's own role="article" inside its parent
+      // post's article container — keep only the outermost (top-level feed
+      // post) nodes, which structurally excludes comments/replies from ever
+      // being scraped as if they were posts.
+      const articles = allArticles.filter(
+        el => !allArticles.some(other => other !== el && other.contains(el))
+      );
 
       return articles.slice(0, limit).map(el => {
         // Find the message text (Facebook uses specific data attributes for this)
         const messageEl = el.querySelector('div[data-ad-preview="message"]');
         const text = messageEl ? messageEl.innerText : el.innerText;
-        
+
+        // Author name, to filter out anything not posted by the Page itself
+        const authorEl = el.querySelector('h2 a, h3 a, strong a, h2 span, h3 span');
+        const author = authorEl ? authorEl.innerText.trim() : '';
+
         // Find the main image
         const imgs = Array.from(el.querySelectorAll('img')).filter(i => i.src && i.src.includes('fbcdn'));
         let imgSrc = '';
@@ -281,15 +299,22 @@ async function scrapeFacebook(url, limit = 3) {
 
         // Find the timestamp/link
         const timeLink = el.querySelector('a[role="link"]');
-        
+
         return {
           id: el.getAttribute('id') || '',
           content: text,
+          author,
           image: imgSrc,
           timestamp: timeLink ? timeLink.getAttribute('aria-label') || timeLink.innerText : new Date().toISOString(),
           link: timeLink ? (timeLink.href.startsWith('http') ? timeLink.href : window.location.origin + timeLink.href) : window.location.href
         };
-      }).filter(p => p.content && p.content.length > 10);
+      }).filter(p => {
+        if (!p.content || p.content.length <= 10) return false;
+        // Skip anything clearly authored by someone other than the Page
+        // (a comment/reply that slipped past the nesting filter above).
+        if (pageName && p.author && p.author !== pageName) return false;
+        return true;
+      });
     }, limit);
 
     // Download each post's image while the authenticated browser session is
