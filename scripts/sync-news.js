@@ -79,21 +79,42 @@ const PROCESSED_IDS_PATH = path.join(DATA_DIR, "processed_ids.json");
  * post gets a different URL on every anonymous scrape — so hashing the link
  * caused the same post to be re-saved as a new "duplicate" article each run.
  * The post's own text is what's actually stable across scrapes.
+ *
+ * Hash the FULL content, not a truncated prefix — school posts frequently
+ * reuse identical boilerplate openers (rally cries, "SPORTS|" templates,
+ * "Congratulations to..." intros), so a short prefix hash can collide
+ * between two genuinely different posts and silently skip a new one as if
+ * it were already saved.
  */
 function stableId(item) {
-  return hashId(item.content.slice(0, 300) || item.link);
+  return hashId(item.content || item.link);
+}
+
+// Old (pre-fix) formula — only hashed the first 300 chars. Articles saved
+// before this fix live under IDs computed this way; kept only so the
+// duplicate check below still recognizes them and doesn't re-save them
+// under their new full-content ID.
+function legacyStableId(item) {
+  return hashId((item.content || "").slice(0, 300) || item.link);
 }
 
 /**
- * Duplicate check by stable document ID only.
+ * Duplicate check by stable document ID. Also checks the legacy (truncated)
+ * ID formula so posts saved before the full-content-hash fix aren't
+ * mistaken for new posts and re-saved as duplicates.
  * Deleted articles return false → they will be re-created on the next sync.
  * This means admins can delete + resync to force a fresh fetch.
  */
-async function existsInFirestore(id) {
+async function existsInFirestore(id, legacyId) {
   if (!FIREBASE_SERVICE_ACCOUNT || !admin.apps.length) return false;
   try {
     const doc = await admin.firestore().collection("articles").doc(id).get();
-    return doc.exists;
+    if (doc.exists) return true;
+    if (legacyId && legacyId !== id) {
+      const legacyDoc = await admin.firestore().collection("articles").doc(legacyId).get();
+      if (legacyDoc.exists) return true;
+    }
+    return false;
   } catch (err) {
     console.warn(`⚠️ Firestore check error for ${id}:`, err.message);
     return false;
@@ -123,8 +144,12 @@ async function main() {
   const newItems = [];
   for (const item of items) {
     const id = stableId(item);
-    const already = await existsInFirestore(id);
-    if (!already) newItems.push(item);
+    const already = await existsInFirestore(id, legacyStableId(item));
+    if (already) {
+      console.log(`  ⏭️  Skipping (already saved as ${id}): "${item.content.slice(0, 60).replace(/\n/g, ' ')}..."`);
+    } else {
+      newItems.push(item);
+    }
   }
 
   console.log(`✨ ${newItems.length} new posts to process.`);
