@@ -322,8 +322,20 @@ async function scrapeFacebook(url, limit = 3) {
           imgSrc = largestImg.src;
         }
 
-        // Find the timestamp/link
-        const timeLink = el.querySelector('a[role="link"]');
+        // Find the timestamp/link. The first `a[role="link"]` in DOM order
+        // is usually the avatar link (no date text at all) — the real
+        // timestamp/permalink link comes after the page-name heading. Look
+        // for a link whose own text/aria-label actually looks like a date,
+        // falling back to one whose URL looks like a post permalink.
+        const linkCandidates = Array.from(el.querySelectorAll('a[role="link"]'));
+        const looksLikeDate = (s) =>
+          /^\s*\d+\s*(s|m|h|d|w)\s*$/i.test(s) ||
+          /^\s*(yesterday|today)\b/i.test(s) ||
+          /^\s*[A-Za-z]+\s+\d{1,2}\b/.test(s);
+        const timeLink =
+          linkCandidates.find(a => looksLikeDate((a.getAttribute('aria-label') || a.innerText || '').trim())) ||
+          linkCandidates.find(a => /permalink\.php|story_fbid|\/posts\//.test(a.href || '')) ||
+          null;
 
         return {
           id: el.getAttribute('id') || '',
