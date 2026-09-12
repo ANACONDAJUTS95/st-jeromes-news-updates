@@ -116,3 +116,23 @@ pnpm lint
 ## Special note on this Next.js version
 
 `AGENTS.md` at the repo root warns this Next.js version has breaking changes vs. training data — check `node_modules/next/dist/docs/` before writing Next.js-specific code (routing, data fetching, config) and heed deprecation notices there.
+
+## Incident log
+
+### Vercel build failure: `ENAMETOOLONG` on `/news/[id]` (2026-09-12)
+
+**Symptom**: Vercel build failed with:
+```
+Error: ENAMETOOLONG: name too long, open '/vercel/path0/.next/output/functions/news/a-warm-congratulations-to-the-delegates-of-st-jeromes-academy-who-proudly-repre...'
+```
+`pnpm run build` succeeded locally on Windows, which masked the problem — NTFS tolerates long filename components that Vercel's Linux build host rejects.
+
+**Root cause**: `scripts/sync-news.js`'s `slugify()` kebab-cased the entire Gemini-written title with no length cap. One article's title was rewritten by Gemini into a long, sentence-like headline, producing a slug that was effectively a full sentence (231 characters for one article). `app/news/[id]/page.tsx`'s `generateStaticParams()` uses `article.slug` directly as the dynamic route segment, so Next prerenders `/news/<slug>` — and Vercel's build output creates a directory named after that string, blowing past the filesystem's per-component name limit.
+
+**Fix**:
+1. `scripts/sync-news.js`: added `buildSlug(title, id)` (used at both call sites that previously called `slugify()` directly). It caps slugs at `MAX_SLUG_LENGTH = 80`, truncating at the last full word rather than mid-word, and appends a 6-character suffix from the article's stable `id` hash when truncated, to avoid collisions between two long titles that happen to truncate to the same prefix. Reserves `ID_SUFFIX_LENGTH = 7` chars (`-` + 6 hex chars) out of that 80-char budget so the final slug never exceeds the cap even with the suffix appended — an earlier version of this fix forgot to reserve that space and produced slugs longer than the stated cap (86 chars instead of ≤80) until caught and corrected.
+2. `scripts/fix-long-slugs.js` (new): one-off migration script (`node scripts/fix-long-slugs.js`) that scans the existing Firestore `articles` collection for any `slug` over 80 characters and shortens it in place using the same truncate-at-word-boundary + id-suffix approach. Run against production Firestore on 2026-09-12 — found 2 oversized slugs (84 and 231 chars) and fixed both. A second pass was needed after the `ID_SUFFIX_LENGTH` budget bug above was caught, to bring one slug from 86 chars down to within the 80-char cap.
+
+**Verification**: re-ran `node scripts/fix-long-slugs.js` afterward and confirmed 0 oversized slugs remain across all 18 articles; `pnpm run build` locally regenerated all 18 `/news/[id]` static paths successfully.
+
+**Takeaway for future slug/route-param work**: any Firestore field that gets used as a Next.js dynamic route segment via `generateStaticParams()` needs a length cap enforced at write time (in `sync-news.js`), not just at read time — a static build turns that value into a filesystem path component, and Windows/NTFS will silently tolerate lengths that Vercel's Linux build host won't. When adding a length-capped-plus-suffix truncation, double check the suffix is subtracted from the budget *before* truncating, not added on top of it.

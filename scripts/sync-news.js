@@ -578,7 +578,7 @@ Output ONLY valid JSON:
   // Final cleanup and formatting
   let finalTitle = stripNewsPrefix(parsed.title || cleanContent.split('\n')[0]);
   const id = stableArticleId;
-  const slug = slugify(finalTitle) || `article-${id}`;
+  const slug = buildSlug(finalTitle, id);
 
   // Construct content with credits if available
   let finalContent = parsed.content;
@@ -617,7 +617,7 @@ function basicTransform(item) {
   return {
     id,
     title,
-    slug: slugify(title),
+    slug: buildSlug(title, id),
     content: `<p>${item.content.replace(/\n+/g, "</p><p>")}</p>`,
     excerpt: item.content.slice(0, 160),
     originalUrl: item.link || "",
@@ -717,6 +717,24 @@ function slugify(str) {
     .replace(/[^\w\s-]/g, "")
     .replace(/[\s_-]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+// Slugs become a Next.js dynamic route segment (and, at build time, a
+// filesystem path component in Vercel's build output) — an untruncated
+// slugify() of a long Gemini-written title can exceed the OS filename-length
+// limit and fail the build (ENAMETOOLONG), even though it may build fine
+// locally on a filesystem with longer/looser limits (e.g. NTFS).
+const MAX_SLUG_LENGTH = 80;
+const ID_SUFFIX_LENGTH = 7; // "-" + 6 hex chars, reserved out of MAX_SLUG_LENGTH below
+
+function buildSlug(title, id) {
+  const base = slugify(title);
+  if (!base) return `article-${id}`;
+  if (base.length <= MAX_SLUG_LENGTH) return base;
+
+  const budget = MAX_SLUG_LENGTH - ID_SUFFIX_LENGTH;
+  const truncated = base.slice(0, budget).replace(/-[^-]*$/, "") || base.slice(0, budget);
+  return `${truncated}-${id.slice(0, 6)}`;
 }
 
 main().catch((err) => {
